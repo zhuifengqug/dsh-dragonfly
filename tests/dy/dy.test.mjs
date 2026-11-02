@@ -104,7 +104,7 @@ test('open 无 query 时打开抖音首页', async () => {
   const controller = fakeController()
   const result = await open({ controller })
   assert.equal(result.ok, true)
-  assert.deepEqual(controller.calls.navigate, ['https://www.douyin.com/'])
+  assert.deepEqual(controller.calls.navigate, ['https://www.douyin.com/?recommend=1&from_nav=1'])
   assert.equal(result.state.pageKind, 'video')
 })
 
@@ -123,7 +123,7 @@ test('open 的 query 为空白字符串时仍然走首页', async () => {
   const controller = fakeController()
   const result = await open({ query: '   ', controller })
   assert.equal(result.ok, true)
-  assert.deepEqual(controller.calls.navigate, ['https://www.douyin.com/'])
+  assert.deepEqual(controller.calls.navigate, ['https://www.douyin.com/?recommend=1&from_nav=1'])
   assert.equal(result.query, null)
 })
 
@@ -409,6 +409,43 @@ test('readPageState 抖音首页没视频没卡片时是 unknown，不误判成 
   assert.equal(result.pageKind, 'unknown')
 })
 
+// 这一条是照真机崩过的样子写的：推荐流里只有一个 feed-live 卡片，
+// 卡片里确实有一个 <video>，但它没有作品 id（直播预览）。
+// 旧实现不知道「唯一那张卡片就是容器」，往上爬 8 层爬到一堆空壳 ⇒ 整片读成 unknown。
+test('readPageState 推荐流里唯一的 feed-live 卡片会落进 live-preview，而不是 unknown', async () => {
+  const card = stubNode({ getAttribute: (name) => (name === 'data-e2e' ? 'feed-live' : null) })
+  card.matches = (selector) => String(selector).includes('feed-live')
+  const videoEl = stubNode({
+    currentTime: 0, duration: null, paused: true, muted: false,
+    readyState: 0, ended: false, videoWidth: 0, videoHeight: 0,
+    closest: () => null,     // 不在 feed-active-video / video-detail 里
+  })
+  card.contains = (node) => node === videoEl
+  videoEl.parentElement = card
+
+  const result = await runReadPageState({
+    location: {
+      origin: 'https://www.douyin.com',
+      href: 'https://www.douyin.com/?recommend=1',
+      pathname: '/',
+      searchParams: new URLSearchParams('recommend=1'),
+    },
+    document: {
+      readyState: 'complete',
+      title: '抖音',
+      querySelectorAll: (selector) => {
+        if (selector === 'video') return [videoEl]
+        if (selector.includes('feed-live')) return [card]
+        return []
+      },
+      querySelector: () => null,
+    },
+  })
+
+  assert.equal(result.pageKind, 'live-preview')
+  assert.ok(!result.video || !result.video.id, '直播预览没有作品 id')
+})
+
 test('readPageState 在作品页读得出 id / 作者 / 标题 / 播放进度', async () => {
   const titleEl = stubNode({
     textContent: '今天在县城吃到了十块钱的早餐',
@@ -509,3 +546,4 @@ test('identityOf 只认出画的作品，冲突或未就绪一律 null', async (
   assert.equal(identityOf({ unsupportedPage: true }), null)
   assert.equal(identityOf(null), null)
 })
+

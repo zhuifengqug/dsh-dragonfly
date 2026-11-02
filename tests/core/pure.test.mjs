@@ -118,6 +118,28 @@ test('mergeReport 保留已有条目，新增的排进去', () => {
   assert.match(b.text, /BV1yy411c7mE/)
 })
 
+// 同一天跑第二轮时，`## 总结` 下面那段必须被这一轮的替换掉。
+// 真机上出现过两份互相矛盾的总结同时躺在报告里（上一轮说"没跑成"、这一轮说收了几条）。
+test('mergeReport 同一小节里这一轮写的正文替换上一轮的，不叠加', () => {
+  const day = '2026-11-02'
+  const round1 = ['## 总结', '', '这一轮没跑成，两个入口都塌了。', ''].join('\n')
+  const round2 = ['## 总结', '', '收了三条，抖音停在直播页没取到作品。', ''].join('\n')
+  const a = mergeReport('', round1, day)
+  const b = mergeReport(a.text, round2, day)
+  assert.match(b.text, /收了三条/)
+  assert.doesNotMatch(b.text, /没跑成/, '上一轮的总结不该还在')
+})
+
+test('mergeReport 这一轮没写的小节正文保留上一轮的', () => {
+  const day = '2026-11-02'
+  const round1 = ['## 扫过没收的', '', '- BV1zz411c7mF：太短', ''].join('\n')
+  const round2 = [ENTRY_A, '', '## 总结', '', '收了。', ''].join('\n')
+  const a = mergeReport('', round1, day)
+  const b = mergeReport(a.text, round2, day)
+  assert.match(b.text, /BV1zz411c7mF/, '上一轮列的"扫过没收的"要留着')
+  assert.match(b.text, /收了。/)
+})
+
 test('countPicks 只数档位=值得看的', () => {
   const text = [
     '### [B站] BV1xx411c7mD / 甲',

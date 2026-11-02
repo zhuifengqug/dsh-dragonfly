@@ -17,7 +17,13 @@ export const DY_PAGE_NAME = 'caifeng-dy'
 /** 抖音的合法原点（离开它就当「不是我们的页面」处理） */
 const DOUYIN_ORIGIN = 'https://www.douyin.com'
 
-export const HOME_URL = 'https://www.douyin.com/'
+/**
+ * 推荐流首页。
+ * ⚠️ 必须是带 `recommend=1` 的这个地址：裸 `https://www.douyin.com/` 会被跳到
+ *    `/jingxuan`（精选页），那页没有 feed 卡片、也没有能上下滑的作品流 —— 读出来
+ *    只能是 unknown。参考实现用的就是这一条。
+ */
+export const HOME_URL = 'https://www.douyin.com/?recommend=1&from_nav=1'
 export const searchUrl = (query) => `${DOUYIN_ORIGIN}/search/${encodeURIComponent(String(query ?? ''))}`
 
 /** 截图采样间隔（离散阶梯：张数一多就自动收紧，避免一轮跑太久） */
@@ -97,6 +103,17 @@ export const READ_PAGE_STATE_SOURCE = String.raw`function readPageState() {
   }).sort(function (a, b) { return b.area - a.area; });
 
   var element = candidates[0] ? candidates[0].element : null;
+
+  // 推荐流上的卡片：先把它们算出来，下面「activeContainer 回落」要用。
+  var recommendRoute = new URL(location.href);
+  var recommendFeed =
+    ['/', '/recommend', '/recommend/'].indexOf(recommendRoute.pathname) >= 0
+    && !workId(recommendRoute.href);
+  var feedCards = [].slice.call(document.querySelectorAll(
+    '[data-e2e="feed-active-video"],[data-e2e="feed-live-card"],[data-e2e="feed-live"]'
+  )).filter(function (card) { return visible(card) && !card.closest(privateArea); });
+  var FEED_CARD_SEL = '[data-e2e="feed-active-video"],[data-e2e="feed-live-card"],[data-e2e="feed-live"]';
+
   var video = null, activeContainer = null, identityConflict = false;
   if (element) {
     activeContainer = element.closest('[data-e2e="feed-active-video"],[data-e2e="video-detail"]');
@@ -106,6 +123,12 @@ export const READ_PAGE_STATE_SOURCE = String.raw`function readPageState() {
         if (activeContainer.querySelector('[class*="video-info-detail"]')) break;
         activeContainer = activeContainer.parentElement;
       }
+    }
+    // 🔴 关键回落（参考实现这一行，移植时漏了它会让推荐流整片读成 unknown）：
+    //    整页只有一张 feed 卡时，那个 video 就在卡里 —— 直接把卡片当容器，
+    //    否则往上爬 8 层只会爬到一堆没有作品 id、没有链接的壳。
+    if (!activeContainer || !activeContainer.matches(FEED_CARD_SEL)) {
+      if (feedCards.length === 1 && feedCards[0].contains(element)) activeContainer = feedCards[0];
     }
     var links = [].slice.call(activeContainer ? activeContainer.querySelectorAll('a[href]') : [])
       .filter(function (link) { return visible(link) && !link.closest(privateArea); });
@@ -163,14 +186,11 @@ export const READ_PAGE_STATE_SOURCE = String.raw`function readPageState() {
   }
 
   // 推荐流里的「直播预览」：有卡片、没有作品 id，也不在登录/验证态里。
-  var route = new URL(location.href);
-  var recommendFeed = ['/', '/recommend', '/recommend/'].indexOf(route.pathname) >= 0 && !workId(route.href);
-  var feedCards = [].slice.call(document.querySelectorAll(
-    '[data-e2e="feed-active-video"],[data-e2e="feed-live-card"],[data-e2e="feed-live"]'
-  )).filter(function (card) { return visible(card) && !card.closest(privateArea); });
+  // 判据是「没有作品 id」，不是「没有 video 元素」—— 直播卡里也有一个 <video>，
+  // 只是它没有作品 id。写成只看 video 存不存在，会让整片推荐流永远落不进 live-preview。
   var livePreview =
     recommendFeed
-    && !video
+    && !(video && video.id)
     && !loginRequired
     && !verificationRequired
     && feedCards.length === 1
@@ -249,6 +269,18 @@ let cachedReadPageState = null
 function readPageStateFunction() {
   if (!cachedReadPageState) cachedReadPageState = compilePageFunction(READ_PAGE_STATE_SOURCE, 'readPageState')
   return cachedReadPageState
+}
+
+/**
+ * 另外四个页面函数也要**编译成真函数**再交给 playwright。
+ * ⚠️ 直接把源码字符串传给 `page.evaluate` 会被当成一段「表达式」执行：
+ *    字符串形式的 `function foo(){}` 求值结果是 undefined，参数被丢掉 ——
+ *    计数器根本没装上，读回来是 undefined，紧接着 `.blocked` 就抛 TypeError。
+ */
+const pageFnCache = new Map()
+function pageFn(source, name) {
+  if (!pageFnCache.has(name)) pageFnCache.set(name, compilePageFunction(source, name))
+  return pageFnCache.get(name)
 }
 
 /** 结构化失败：工具层只看 reason / hint 两句人话 */
@@ -399,6 +431,16 @@ export class BrowserController {
     }
     // 导航会把 window.name 一起带走吗？不会，但保险起见再盖一次章
     await page.evaluate((name) => { window.name = name; }, DY_PAGE_NAME).catch(() => {})
+
+    // 抖音有时把首页甩到 /jingxuan（精选），那页没有能上下滑的作品流。
+    // 参考实现的办法：还在 /jingxuan 就点一下导航里的「推荐」。
+    if (url === HOME_URL && page.url().includes('/jingxuan')) {
+      try {
+        const tab = page.locator('a').filter({ hasText: /^推荐$/ })
+        if (await tab.count() > 0) await tab.first().click({ timeout: 5000 })
+      } catch { /* 点不动就算了，state() 会如实回 unknown */ }
+    }
+
     const deadline = Date.now() + 15_000
     while (Date.now() < deadline) {
       const ready = await page.evaluate(() => document.readyState).catch(() => 'loading')
@@ -448,11 +490,11 @@ export class BrowserController {
     const token = `caifeng-switch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
     const selector = `[data-e2e="video-switch-${direction > 0 ? 'next' : 'prev'}-arrow"]`
 
-    await page.evaluate(installSwitchCounterSource, { token, selector })
+    await page.evaluate(pageFn(installSwitchCounterSource, 'installSwitchCounter'), { token, selector })
 
     let usedInput = null
     // ① 先试箭头
-    const point = await page.evaluate(probeSwitchTargetSource, { token, selector })
+    const point = await page.evaluate(pageFn(probeSwitchTargetSource, 'probeSwitchTarget'), { token, selector })
     if (point && point.ok) {
       try {
         await page.mouse.move(point.x, point.y)
@@ -465,7 +507,7 @@ export class BrowserController {
     if (!usedInput) {
       const box = before.video?.viewport
       if (!box || box.width < 2 || box.height < 2) {
-        await page.evaluate(cleanupSwitchCounterSource, token).catch(() => {})
+        await page.evaluate(pageFn(cleanupSwitchCounterSource, 'cleanupSwitchCounter'), token).catch(() => {})
         return {
           changed: false, before: before.video, after: before.video, state: before,
           reasonCode: 'switch-control-not-interactable',
@@ -482,12 +524,12 @@ export class BrowserController {
       }
     }
     if (!usedInput) {
-      await page.evaluate(cleanupSwitchCounterSource, token).catch(() => {})
+      await page.evaluate(pageFn(cleanupSwitchCounterSource, 'cleanupSwitchCounter'), token).catch(() => {})
       return { changed: false, before: before.video, after: before.video, state: before, reasonCode: 'switch-input-unconfirmed' }
     }
 
-    const receipt = await page.evaluate(readSwitchCounterSource, token).catch(() => ({ trusted: 0, blocked: false }))
-    await page.evaluate(cleanupSwitchCounterSource, token).catch(() => {})
+    const receipt = await page.evaluate(pageFn(readSwitchCounterSource, 'readSwitchCounter'), token).catch(() => ({ trusted: 0, blocked: false }))
+    await page.evaluate(pageFn(cleanupSwitchCounterSource, 'cleanupSwitchCounter'), token).catch(() => {})
 
     if (receipt.blocked) {
       return { changed: false, before: before.video, after: before.video, state: await this.state(), reasonCode: 'switch-input-blocked' }
@@ -679,3 +721,4 @@ const probeSwitchTargetSource = String.raw`function probeSwitchTarget(args) {
   if (!hit || (hit !== element && !element.contains(hit))) return { ok: false, reason: 'occluded' };
   return { ok: true, x: x, y: y };
 }`
+

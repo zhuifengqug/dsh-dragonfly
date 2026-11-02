@@ -11,9 +11,10 @@
  *      会让整条插件不激活 —— 所以失败一律返回结构化 `{ ok:false, reason, hint }`。
  * ============================================================================
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 /** 端口扫描区间（避开旧插件的固定 9227 只会「优先尝试」，不是独占） */
 export const PORT_MIN = 9227
@@ -123,19 +124,85 @@ export function findEdgeExecutable(env = process.env, exists = existsSync) {
 /**
  * 动态加载 playwright-core。
  * 拿不到时**不抛** —— 返回结构化失败，让上层把它翻译成一句人话。
+ *
+ * 为什么不能只写 `import('playwright-core')`：本插件自己不带这个依赖（它 60MB+，
+ * 而且得跟宿主 Electron 的 shim 版本对上），宿主那棵树里也未必有。真正装着它的
+ * 是**别的 profile**（刷抖音那套靠传递依赖拿到的）。所以按下面的顺序找：
+ *   ① 环境变量 CAIFENG_PLAYWRIGHT 指过去（模块目录或入口文件都行）
+ *   ② 插件自己 node_modules 里（npm i playwright-core 之后）
+ *   ③ 每个 `<DSH_HOME>/profiles/<名>/node_modules/playwright-core`
+ *   ④ 宿主 npm 全局树
+ * 找到目录就手工解析 package.json 的 exports['.']，用 file URL 导入 —— 这样不依赖
+ * Node 的模块解析能爬到兄弟目录。
  */
+export function candidatePlaywrightRoots() {
+  const out = []
+  const push = (p) => { if (p && !out.includes(p)) out.push(p) }
+  const env = process.env.CAIFENG_PLAYWRIGHT || process.env.PLAYWRIGHT_CORE_PATH
+  if (env) push(env)
+  // 插件自己
+  push(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'node_modules', 'playwright-core'))
+  // 每个 profile
+  const home = process.env.DSH_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '', '.dsh')
+  try {
+    for (const name of readdirSync(path.join(home, 'profiles'))) {
+      push(path.join(home, 'profiles', name, 'node_modules', 'playwright-core'))
+    }
+  } catch { /* 没有 profiles 目录就算了 */ }
+  // 宿主 npm 全局树
+  const appData = process.env.APPDATA || ''
+  if (appData) push(path.join(appData, 'npm', 'node_modules', '@deepseek-ai', 'dsh', 'node_modules', 'playwright-core'))
+  if (appData) push(path.join(appData, 'npm', 'node_modules', 'playwright-core'))
+  return out
+}
+
+/** 按 package.json 的 exports 手工解出入口文件（找不到就返回 null） */
+function entryOfPackage(dir) {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    const dot = pkg?.exports?.['.']
+    const rel = typeof dot === 'string'
+      ? dot
+      : dot?.import || dot?.default || dot?.require || pkg.module || pkg.main
+    if (!rel) return null
+    const file = path.resolve(dir, rel)
+    return existsSync(file) ? file : null
+  } catch { return null }
+}
+
 export async function loadPlaywright() {
-  let mod
+  const tried = []
+  let mod = null
+  // ① 先按正常模块解析试（插件自己装了就会命中）
   try {
     mod = await import('playwright-core')
   } catch (error) {
+    tried.push(`bare: ${error?.code || error?.message || error}`)
+  }
+  // ② 再按候选根目录逐个手工导入
+  if (!mod) {
+    for (const dir of candidatePlaywrightRoots()) {
+      const file = entryOfPackage(dir)
+      if (!file) { tried.push(`${dir}: 没有可用入口`); continue }
+      try {
+        mod = await import(pathToFileURL(file).href)
+        if (mod) break
+      } catch (error) {
+        tried.push(`${dir}: ${error?.code || error?.message || error}`)
+      }
+    }
+  }
+  if (!mod) {
     return {
       ok: false,
       reason: 'no-playwright',
       hint:
-        '没装 playwright-core，专用 Edge 起不来（所以这一轮读不了抖音）。' +
-        '装一下：在插件目录执行 `npm i playwright-core`，或者把宿主那棵树里的 playwright-core 指过来。' +
-        `（原始错误：${error?.code || error?.message || error}）`,
+        '没找到 playwright-core，专用 Edge 起不来（所以这一轮读不了抖音）。' +
+        '任选一样：① 在插件目录执行 `npm i playwright-core`；' +
+        '② 设环境变量 CAIFENG_PLAYWRIGHT=<playwright-core 目录>；' +
+        '③ 确保有某个 profile（比如装了刷抖音那个）里带着它。' +
+        `（找过：${tried.slice(0, 4).join('；') || '无'}）`,
+      tried,
     }
   }
   const chromium = mod?.chromium ?? mod?.default?.chromium

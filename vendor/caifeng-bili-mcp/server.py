@@ -46,6 +46,7 @@
 import asyncio
 import base64
 import datetime as _dt
+import inspect as _inspect
 import json
 import os
 import random
@@ -508,13 +509,21 @@ async def caifeng_bili_search(
 
     try:
         cred = load_credential()      # 搜索是公开的，没登录也搜得动
-        result = await search.search_by_type(
-            keyword=keyword,
-            search_type=search.SearchObjectType.VIDEO,
-            page=max(1, int(page or 1)),
-            order_type=order_enum,
-            credential=cred,
-        )
+        # bilibili-api-python 各版本签名不一样：17.x 的 search_by_type 不收 credential，
+        # 更早的收。先只看对方认哪些关键字，认什么传什么，别一上来就甩 TypeError。
+        kwargs = {
+            "keyword": keyword,
+            "search_type": search.SearchObjectType.VIDEO,
+            "page": max(1, int(page or 1)),
+            "order_type": order_enum,
+            "credential": cred,
+        }
+        try:
+            accepted = set(_inspect.signature(search.search_by_type).parameters)
+        except (TypeError, ValueError):
+            accepted = set(kwargs)
+        call_kwargs = {k: v for k, v in kwargs.items() if k in accepted}
+        result = await search.search_by_type(**call_kwargs)
     except Exception as e:
         return _j({"keyword": keyword, "count": 0, "videos": [], "error": f"{type(e).__name__}: {e}"})
 
