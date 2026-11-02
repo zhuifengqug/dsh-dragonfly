@@ -153,6 +153,13 @@ _STYLE_LEAD = re.compile(
     r")"
 )
 
+# 单片笔记的开关：设置页「写单条笔记」关掉时，宿主下发 CAIFENG_NOTES=0。
+#   · 没给 / 给 1 ⇒ 写（老配置与手工跑都照旧）
+#   · 给 0 ⇒ **不写**。模型就算硬塞 detail 也不落盘，正文照样进日报。
+# 为什么不读 config.json：这个进程只认宿主下发的 env —— 家目录里的 config
+# 是宿主的东西，这里再去读一遍就变成两份真源，迟早对不上。
+_NOTES_OFF = os.environ.get("CAIFENG_NOTES", "1").strip() in ("0", "false", "no")
+
 
 def _bigrams(s: str) -> set:
     t = re.sub(r"[^\w\u4e00-\u9fff]", "", "".join(ch for ch in str(s or "") if not ch.isspace()))
@@ -1479,7 +1486,7 @@ def caifeng_report_write(date: str = "", entries: str = "", skipped: str = "", n
                     added.append(vid)
 
         detail = str(item.get("detail") or "").strip()
-        if vid and detail:
+        if vid and detail and not _NOTES_OFF:
             ttl = " ".join(str(item.get("title") or "").split()) or vid
             note_path = REPORTS_DIR / f"{vid}.md"
             _write_text(note_path, f"# {vid} {ttl}\n\n{detail}\n")

@@ -278,6 +278,22 @@ window.__ModuleLoader__.load({
         finally { setBusy('') }
       }
 
+      /**
+       * 切到 auto 要单独确认一次。
+       * 这是唯一一处「选下去就会真的对外说话」的开关，跟 read/draft 不是一个量级：
+       * 前者只写在本地，后者会把话发到别人那里，发出去收不回来。
+       * 用 window.confirm —— 桌面版和浏览器都有，不必自己搭一个对话框。
+       */
+      const setDmMode = (v) => {
+        if (v === 'auto' && val('dmMode') !== 'auto') {
+          const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm('auto 会让它真的替你回私信——发出去就收不回来了。确定要开吗？')
+            : false
+          if (!ok) return
+        }
+        set('dmMode', v)
+      }
+
       const modelValue = `${val('model')?.provider || ''}\u0000${val('model')?.model || ''}`
       const modelOptions = (models?.providers || []).flatMap((p) =>
         (p.models || []).map((m) => ({ value: `${p.id}\u0000${m.id}`, label: `${p.id} / ${m.id}` })))
@@ -367,7 +383,7 @@ window.__ModuleLoader__.load({
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmMode || '私信怎么处理'),
               h('select', {
                 'data-cf-input': '', value: val('dmMode') || 'read',
-                onChange: (e) => set('dmMode', e.target.value),
+                onChange: (e) => setDmMode(e.target.value),
               },
                 h('option', { value: 'read' }, 'read · 只看，不动'),
                 h('option', { value: 'draft' }, 'draft · 起草但不发'),

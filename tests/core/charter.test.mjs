@@ -80,10 +80,34 @@ test('关掉收藏夹 ⇒ 明确说这轮不看，而不是含糊带过', () => 
   assert.match(briefFromConfig(clampConfig({ favoritesEnabled: true, favoritesDays: 3 })), /最近 3 天/)
 })
 
-test('brief 详略要压缩写法，notesEnabled 关掉就不写单片笔记', () => {
+test('近义词集合：关掉「写单条笔记」时，这一条必须明说，不能含糊', () => {
   const brief = briefFromConfig(clampConfig({ reportLevel: 'brief', notesEnabled: false }))
-  assert.match(brief, /只写一句结论/)
   assert.match(brief, /不用写单片笔记/)
+})
+
+test('brief 详略给的是**薄版形状**，不是"写短点"一句空话', () => {
+  const brief = briefFromConfig(clampConfig({ reportLevel: 'brief' }))
+  assert.match(brief, /brief（薄版）/)
+  // 三条：标题行 / 档位 / 一句话，且不许写「为什么值得」
+  assert.match(brief, /\*\*档位\*\*/)
+  assert.match(brief, /\*\*我的一句话\*\*/)
+  assert.match(brief, /不写[^\n]*为什么值得/)
+  // 薄不等于可以省总结与跳过条数
+  assert.match(brief, /## 总结/)
+  assert.match(brief, /因无证据跳过/)
+})
+
+test('full 详略要求三段都在', () => {
+  const full = briefFromConfig(clampConfig({ reportLevel: 'full' }))
+  assert.match(full, /full（完整版）/)
+  assert.match(full, /为什么值得/)
+})
+
+test('收藏夹开着时要明说"翻了也要记进判重表"，否则下一轮又从头开始', () => {
+  const on = briefFromConfig(clampConfig({ favoritesEnabled: true, favoritesDays: 5 }))
+  assert.match(on, /最近 5 天/)
+  assert.match(on, /判重/)
+  assert.match(on, /弃/)
 })
 
 test('两个信源都关着时，章程直接让它别跑', () => {
