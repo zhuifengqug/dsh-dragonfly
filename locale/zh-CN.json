@@ -1,0 +1,17 @@
+{
+  "panel": "采风",
+  "today": "今天",
+  "settings": "设置",
+  "run": "现在就跑",
+  "running": "正在跑…",
+  "empty": "还没采过。",
+  "noReport": "今天还没有日报。",
+  "sources": "信源与额度",
+  "howToPick": "怎么挑",
+  "interaction": "互动与产出",
+  "runtime": "运行环境",
+  "save": "保存",
+  "saved": "存好了",
+  "never": "从没跑过",
+  "notRunYet": "还没有信源，跑不了。"
+}

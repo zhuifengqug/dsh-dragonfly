@@ -1,0 +1,8 @@
+{
+  "name": "dsh-profile-caifeng-duty",
+  "private": true,
+  "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless"
+  ]
+}

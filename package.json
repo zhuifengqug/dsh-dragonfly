@@ -1,0 +1,70 @@
+{
+  "name": "@zhuifengqug/dsh-tianshu-caifeng",
+  "version": "0.1.0",
+  "description": "天枢·采风：每天替你采一轮风 —— 挑出值得看的、写一份日报",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "dsh-plugin.naming.json",
+    "locale/*.json",
+    "icon.svg",
+    "lib/**/*.mjs",
+    "bili/**/*.mjs",
+    "dy/**/*.mjs",
+    "prompts",
+    "profile-template",
+    "vendor",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node --test tests/core/*.test.mjs tests/host/*.test.mjs tests/client/*.test.mjs",
+    "check:syntax": "node --check index.js && node --check client.js && node --check lib/paths.mjs && node --check lib/state.mjs && node --check lib/seen.mjs && node --check lib/report.mjs && node --check lib/clock.mjs && node --check lib/hostdeps.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-commands": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-commands": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

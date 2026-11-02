@@ -1,0 +1,15 @@
+# ============================================================================
+# 天枢·采风 —— DSH bundle patch（插件自带的挂载声明）
+# ============================================================================
+# 装上之后，profile 只要在 `dsh.profile.bundles` 里列出本包名即生效。
+#
+#   dsh plugin --profile web add @zhuifengqug/dsh-tianshu-caifeng
+#   （本地开发：dsh plugin --profile web add link:<插件目录>）
+#
+# ⚠️ 这里的 entry id 就是设置命名空间（`caifeng`），两者必须一致 ——
+#    DSH 的 settings.describe() 按 loader entry id 认命名空间。
+# ============================================================================
+
+- insert:
+    - id: caifeng
+      name: '@zhuifengqug/dsh-tianshu-caifeng'

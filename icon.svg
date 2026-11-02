@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="天枢·采风">
+  <rect width="96" height="96" rx="18" fill="#10171a"/>
+  <!-- 罗盘外圈 -->
+  <circle cx="48" cy="48" r="30" fill="none" stroke="#54b89b" stroke-width="3"/>
+  <!-- 内圈刻度 -->
+  <circle cx="48" cy="48" r="20" fill="none" stroke="#d9b663" stroke-width="2" stroke-dasharray="2 5"/>
+  <!-- 四个方位 -->
+  <path d="M48 12v8M48 76v8M12 48h8M76 48h8" stroke="#54b89b" stroke-width="3" stroke-linecap="round"/>
+  <!-- 指针：风化成一缕，指向东北 -->
+  <path d="M48 48 63 33 53 53Z" fill="#df5e4e"/>
+  <path d="M48 48 33 63 43 43Z" fill="#8fa6b2"/>
+  <circle cx="48" cy="48" r="4" fill="#10171a" stroke="#d9b663" stroke-width="2"/>
+</svg>
