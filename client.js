@@ -87,6 +87,13 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-label-tertiary,#8b9199);padding:2px 0;}
 [data-cf-day][data-on]{color:var(--dsw-alias-brand-primary,#4c7dff);font-weight:600;}
 [data-cf-warn]{font-size:11px;line-height:16px;color:#b2453e;}
+[data-cf-fold]{appearance:none;border:0;background:transparent;padding:0;cursor:pointer;
+  font-family:inherit;text-align:left;color:var(--dsw-alias-label-tertiary,#8b9199);}
+[data-cf-fold]:hover{color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-qr]{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:4px 0;}
+[data-cf-log]{margin:6px 0 0;padding:8px 10px;max-height:220px;overflow:auto;font-size:11px;line-height:16px;
+  background:var(--dsw-alias-bg-secondary,#f2f4f6);border-radius:8px;white-space:pre-wrap;word-break:break-all;
+  color:var(--dsw-alias-label-secondary,#5b6068);}
 `
 
     const StyleTag = () => h('style', { 'data-cf-style': '' }, CSS)
@@ -185,10 +192,36 @@ window.__ModuleLoader__.load({
       const [msg, setMsg] = useState('')
       const [err, setErr] = useState('')
 
+      const [models, setModels] = useState(null)
+      const [py, setPy] = useState(null)
+      const [login, setLogin] = useState(null)     // {key, qr, state}
+      const [diag, setDiag] = useState(null)
+      const [more, setMore] = useState('')          // 互动/运行环境是否展开
+      const [busy, setBusy] = useState('')
+
       useEffect(() => {
         jget('/config').then((r) => { setCfg(r.config || {}); setLabels(r.labels || {}) })
           .catch((e) => setErr(String(e.message || e)))
       }, [])
+
+      // 模型候选与 Python 状态：进设置页就顺手读一次，读不到不算错
+      useEffect(() => {
+        jget('/models').then(setModels).catch(() => setModels({ ok: false }))
+        jget('/python').then(setPy).catch(() => setPy(null))
+      }, [])
+
+      // 二维码要一直问，直到扫上或者过期
+      useEffect(() => {
+        if (!login?.key || login.state === 'ok' || login.state === 'expired') return undefined
+        const t = setInterval(async () => {
+          try {
+            const r = await jpost('/login/poll', { key: login.key })
+            setLogin((cur) => (cur?.key === login.key ? { ...cur, state: r.state } : cur))
+            if (r.state === 'ok') onSaved?.()
+          } catch { /* 一次失败不要紧，下一轮再问 */ }
+        }, 2000)
+        return () => clearInterval(t)
+      }, [login?.key, login?.state, onSaved])
 
       if (err) return h('div', { 'data-cf-page': '' }, h(StyleTag, null),
         h('div', { 'data-cf-warn': '' }, `读配置出错：${err}`))
@@ -209,6 +242,49 @@ window.__ModuleLoader__.load({
           onSaved?.()
         } catch (e) { setErr(String(e.message || e)) }
       }
+
+      // ── 运行环境里的几个动作 ────────────────────────────────────────────
+      const installPython = async () => {
+        setBusy('python'); setMsg('')
+        try {
+          const r = await jpost('/python')
+          setMsg(r.text || '开始装了。')
+        } catch (e) { setMsg(`没装成：${e.message || e}`) }
+        finally { setBusy('') }
+      }
+
+      const startLogin = async () => {
+        setBusy('login'); setMsg('')
+        try {
+          const r = await jpost('/login/start')
+          setLogin({ key: r.key, qr: r.qr, state: 'waiting' })
+        } catch (e) { setMsg(`出码失败：${e.message || e}`) }
+        finally { setBusy('') }
+      }
+
+      const runDiagnose = async () => {
+        setBusy('diag')
+        try { setDiag(await jget('/diagnose')) } catch (e) { setDiag({ ok: false, verdict: String(e.message || e) }) }
+        finally { setBusy('') }
+      }
+
+      const importOld = async () => {
+        setBusy('import')
+        try {
+          const r = await jpost('/import')
+          setMsg(r.text || (r.state === 'imported' ? '导入好了。' : '没有可导入的东西。'))
+          if (r.state === 'imported') onSaved?.()
+        } catch (e) { setMsg(`导入失败：${e.message || e}`) }
+        finally { setBusy('') }
+      }
+
+      const modelValue = `${val('model')?.provider || ''}\u0000${val('model')?.model || ''}`
+      const modelOptions = (models?.providers || []).flatMap((p) =>
+        (p.models || []).map((m) => ({ value: `${p.id}\u0000${m.id}`, label: `${p.id} / ${m.id}` })))
+
+      const runtime = status?.runtime || {}
+      const pyOk = Boolean(py?.venv && py?.python)
+      const logined = Boolean(runtime.biliLoggedIn)
 
       return h('div', { 'data-cf-page': '' },
         h(StyleTag, null),
@@ -247,32 +323,136 @@ window.__ModuleLoader__.load({
           h(Row, null,
             h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.fetchPerRound || '每轮最多细看几条'),
             h(Num, { value: val('fetchPerRound'), min: 1, max: 30, onChange: (v) => set('fetchPerRound', v) })),
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.reportLevel || '日报详略'),
+            h('select', {
+              'data-cf-input': '',
+              value: val('reportLevel') || 'full',
+              onChange: (e) => set('reportLevel', e.target.value),
+            },
+              h('option', { value: 'full' }, 'full · 写全'),
+              h('option', { value: 'brief' }, 'brief · 只写结论'))),
         ),
 
-        // ③ 运行环境（含模型与存放位置）
-        h(Sec, { title: '运行环境' },
-          h(Row, null,
-            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '用哪个模型'),
-            h('input', {
-              'data-cf-input': '', placeholder: 'provider', style: { width: '120px' },
-              value: val('model')?.provider || '',
-              onChange: (e) => set('model', { ...val('model'), provider: e.target.value }),
-            }),
-            h('input', {
-              'data-cf-input': '', placeholder: 'model', style: { width: '150px' },
-              value: val('model')?.model || '',
-              onChange: (e) => set('model', { ...val('model'), model: e.target.value }),
-            })),
-          h(Note, null, '两个都留空就跟宿主的当前默认模型走。'),
-          h(Row, null,
-            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.outputDir || '存放位置'),
-            h('input', {
-              'data-cf-input': '', placeholder: status?.home || '', style: { width: '280px' },
-              value: val('outputDir') || '',
-              onChange: (e) => set('outputDir', e.target.value),
-            })),
-          h(Note, null, '留空就是默认位置。填绝对路径会搬过去（只搬配置、判重、登录凭证）。'),
-        ),
+        // ③ 互动与产出（默认折起）
+        h('section', { 'data-cf-sec': '' },
+          h('button', {
+            type: 'button', 'data-cf-h': '', 'data-cf-fold': '',
+            onClick: () => setMore(more === 'interact' ? '' : 'interact'),
+          }, `${more === 'interact' ? '▾' : '▸'} 互动与产出`),
+          more !== 'interact' ? null : h('div', { 'data-cf-sec': '' },
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoComment || '挑到值得看就留一句评论并 @ 我'),
+              h(Switch, { on: Boolean(val('autoComment')), onChange: (v) => set('autoComment', v) })),
+            h(Note, null, `@ 谁：${val('mentionName') || '（没填）'}。一轮最多一条。`),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.commentLength || '评论长度'),
+              h('select', {
+                'data-cf-input': '', value: val('commentLength') || 'medium',
+                onChange: (e) => set('commentLength', e.target.value),
+              },
+                h('option', { value: 'short' }, 'short · 15 字内'),
+                h('option', { value: 'medium' }, 'medium · 40 字内'),
+                h('option', { value: 'long' }, 'long · 100 字内'))),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.notesEnabled || '值得看的另存单片笔记'),
+              h(Switch, { on: Boolean(val('notesEnabled')), onChange: (v) => set('notesEnabled', v) })),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.favoritesEnabled || '把收藏夹的更新也算进来'),
+              h(Switch, { on: Boolean(val('favoritesEnabled')), onChange: (v) => set('favoritesEnabled', v) })),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmEnabled || '处理收到的私信'),
+              h(Switch, { on: Boolean(val('dmEnabled')), onChange: (v) => set('dmEnabled', v) })),
+            val('dmEnabled') ? h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmMode || '私信怎么处理'),
+              h('select', {
+                'data-cf-input': '', value: val('dmMode') || 'read',
+                onChange: (e) => set('dmMode', e.target.value),
+              },
+                h('option', { value: 'read' }, 'read · 只看，不动'),
+                h('option', { value: 'draft' }, 'draft · 起草但不发'),
+                h('option', { value: 'auto' }, 'auto · 自动回'))) : null,
+            val('dmMode') === 'auto' ? h(Note, null,
+              '自动回会真的把话发出去。它会写进日报里留对账，但还是建议你先看一眼 read 攒几天的记录再说。') : null,
+          )),
+
+        // ④ 运行环境（默认折起）
+        h('section', { 'data-cf-sec': '' },
+          h('button', {
+            type: 'button', 'data-cf-h': '', 'data-cf-fold': '',
+            onClick: () => setMore(more === 'runtime' ? '' : 'runtime'),
+          }, `${more === 'runtime' ? '▾' : '▸'} 运行环境`),
+          more !== 'runtime' ? null : h('div', { 'data-cf-sec': '' },
+
+            // 模型
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '用哪个模型'),
+              modelOptions.length
+                ? h('select', {
+                  'data-cf-input': '', value: modelValue,
+                  onChange: (e) => {
+                    const [provider, model] = e.target.value.split('\u0000')
+                    set('model', { provider, model })
+                  },
+                },
+                  h('option', { value: '\u0000' }, '跟宿主默认走'),
+                  modelOptions.map((o) => h('option', { key: o.value, value: o.value }, o.label)))
+                : h('input', {
+                  'data-cf-input': '', placeholder: models?.note || 'provider / model', style: { width: '240px' },
+                  value: `${val('model')?.provider || ''}${val('model')?.model ? ` / ${val('model')?.model}` : ''}`,
+                  onChange: (e) => {
+                    const [provider, model] = e.target.value.split('/').map((s) => s.trim())
+                    set('model', { provider: provider || '', model: model || '' })
+                  },
+                })),
+            !modelOptions.length ? h(Note, null, models?.note || '读不到宿主登记的模型名，直接手填 provider 和 model（用 / 隔开）。') : null,
+            h(Note, null, '选「跟宿主默认走」就是空着，用 DSH 现在那个模型。'),
+
+            // 存放位置
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.outputDir || '存放位置'),
+              h('input', {
+                'data-cf-input': '', placeholder: status?.home || '', style: { width: '280px' },
+                value: val('outputDir') || '',
+                onChange: (e) => set('outputDir', e.target.value),
+              })),
+            h(Note, null, '留空就是默认位置。填绝对路径会搬过去（只搬配置、判重、登录凭证，旧日报留在原地）。'),
+
+            // Python
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 那一头要个 Python 环境'),
+              h(Btn, { onClick: installPython, disabled: busy === 'python' },
+                busy === 'python' ? '正在装…' : (pyOk ? '重装' : '装一下'))),
+            h(Note, null, py?.hint || (pyOk ? `好了：${py.python}` : '还没装。装一次就行，几分钟。')),
+
+            // B站 登录
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 登录'),
+              logined ? h('span', { 'data-cf-note': '' }, `已登录（UID ${runtime.biliUid || '?'}）`)
+                : h(Btn, { onClick: startLogin, disabled: busy === 'login' }, '扫码登录')),
+            login?.qr ? h('div', { 'data-cf-qr': '' },
+              h('img', { src: login.qr, alt: '登录二维码', style: { width: '180px', height: '180px' } }),
+              h(Note, null, login.state === 'ok' ? '扫上了。'
+                : login.state === 'scanned' ? '扫到了，手机上点一下确认。'
+                  : login.state === 'expired' ? '码过期了，再点一次「扫码登录」。'
+                    : '用手机 B站 扫这个码。')) : null,
+
+            // 抖音浏览器
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '抖音浏览器'),
+              h('span', { 'data-cf-note': '' },
+                runtime.dyProfile ? '登录态还留着' : '还没起过（第一次跑的时候会开一个专用窗口）')),
+            h(Note, null, '抖音要一个真浏览器窗口，第一次用得在里面登一次。之后登录态存在自己的 profile 里，跑完不关。'),
+
+            // 诊断 / 导入
+            h(Row, null,
+              h(Btn, { onClick: runDiagnose, disabled: busy === 'diag' }, '看看哪儿不对'),
+              h(Btn, { onClick: importOld, disabled: busy === 'import' }, '从旧插件导入')),
+            diag ? h('div', { 'data-cf-note': '' },
+              h('div', null, diag.verdict || (diag.ok ? '看着没问题。' : '有点问题。')),
+              diag.detail?.hint ? h('div', null, diag.detail.hint) : null,
+              diag.logTail ? h('pre', { 'data-cf-log': '' }, diag.logTail) : null) : null,
+          )),
 
         h(Row, null,
           h(Btn, { onClick: save, primary: true }, '保存'),
@@ -324,12 +504,20 @@ window.__ModuleLoader__.load({
     // ── 设置页里的一页（同样的两个页签，精简） ─────────────────────────────────
     function SettingsSection() {
       const [tab, setTab] = useState('today')
+      const [status, setStatus] = useState(null)
+
+      // 设置页里没有主区那条状态带，所以这里自己读一次 —— 运行环境那一段要用它
+      const refresh = useCallback(() => {
+        jget('/status').then(setStatus).catch(() => setStatus(null))
+      }, [])
+      useEffect(() => { refresh() }, [refresh])
+
       return h('div', { 'data-cf-page': '' },
         h(StyleTag, null),
         h('div', { 'data-cf-tabs': '' },
           h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
           h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')),
-        tab === 'today' ? h(TodayPanel, { compact: true }) : h(SettingsPanel, { status: null }),
+        tab === 'today' ? h(TodayPanel, { compact: true }) : h(SettingsPanel, { status, onSaved: refresh }),
       )
     }
 

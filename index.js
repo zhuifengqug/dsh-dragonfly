@@ -12,11 +12,14 @@
  * ============================================================================
  */
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
 
 import { loadHostDeps } from './lib/hostdeps.mjs'
 import { createCaifengService } from './lib/service.mjs'
 import { DEFAULTS, FIELD_LABELS, clampConfig, pickKnownKeys } from './lib/config.mjs'
+import { listModels, currentDefault } from './lib/models.mjs'
+import { createDyHost } from './lib/dy-host.mjs'
 
 const pluginDir = dirname(fileURLToPath(import.meta.url))
 
@@ -77,6 +80,7 @@ export const Config = !z ? undefined : z.object({
   dmEnabled: describe(z.boolean()),
   dmMode: describe(z.string()),
   dmUid: describe(z.number()),
+  pythonPath: describe(z.string()),
 })
 
 /** 文本输出（跟 bili 一样的形状，宿主认这个） */
@@ -106,6 +110,18 @@ export function apply(ctx, config = {}) {
   for (const note of hostDeps.notes) log(note)
 
   const service = createCaifengService(ctx, { pluginDir, config, log })
+
+  /**
+   * 抖音在宿主这一头。
+   * 桥在 duty 子进程里，要靠 `<家>/dy/control/host.json` 找回来 —— 所以路由注册完立刻 publish 一次。
+   */
+  const dyHost = createDyHost({
+    layout: () => service.layout,
+    origin: () => {
+      try { return ctx.webServer?.getOrigin?.() } catch { return undefined }
+    },
+    log,
+  })
 
   // ── 工具 ──────────────────────────────────────────────────────────────────
   const tool = (spec) => ctx.tools.register(defineTool({
@@ -211,6 +227,37 @@ export function apply(ctx, config = {}) {
     kind: 'prefix',
     path: '/api/caifeng',
     handler: async (req, res) => {
+      const url = new URL(req.url, 'http://localhost')
+      const path = url.pathname.replace(/^\/api\/caifeng/, '').replace(/\/$/, '') || '/'
+      const isPost = req.method === 'POST'
+
+      /**
+       * 抖音这一支走令牌，不走同源判断。
+       * 来的是 duty 子进程里那条 MCP 桥（Node fetch，没有 Origin、没有会话 Cookie），
+       * 它只认 `<家目录>/dy/control/host.json` 里那次 handshake 写下的令牌。
+       */
+      if (path.startsWith('/dy/')) {
+        const token = String(req.headers?.['x-caifeng-token'] || '')
+        if (!dyHost.checkToken(token)) {
+          log('抖音：来路令牌不对，拒了')
+          return json(res, 403, { ok: false, reason: 'bad-token', text: '令牌不对' })
+        }
+        if (!isPost) return json(res, 405, { ok: false, reason: 'method', text: '只收 POST' })
+        const action = path.slice('/dy/'.length)
+        const body = await readBody(req)
+        try {
+          const r = await dyHost.handle(action, body)
+          return json(res, 200, r)
+        } catch (e) {
+          log(`抖音 ${action} 炸了：${e?.message || e}`)
+          return json(res, 200, {
+            ok: false,
+            reason: e?.reason || 'boom',
+            hint: e?.hint || String(e?.message || e),
+          })
+        }
+      }
+
       // 跨进程挡一道（宿主若提供 connection 服务就用它的判断）
       try {
         const rej = ctx.get?.('connection')?.requestRejection?.({ headers: req.headers })
@@ -218,12 +265,10 @@ export function apply(ctx, config = {}) {
       } catch { /* 没有这个服务就跳过 */ }
       if (!sameOriginOk(req)) return json(res, 403, { ok: false, text: '不允许的来路' })
 
-      const url = new URL(req.url, 'http://localhost')
-      const path = url.pathname.replace(/^\/api\/caifeng/, '').replace(/\/$/, '') || '/'
-      const isPost = req.method === 'POST'
-
       try {
-        if (path === '/status' && !isPost) return json(res, 200, { ok: true, ...service.status() })
+        if (path === '/status' && !isPost) {
+          return json(res, 200, { ok: true, ...service.status(), dy: dyHost.status() })
+        }
 
         if (path === '/config' && !isPost) {
           return json(res, 200, {
@@ -256,6 +301,66 @@ export function apply(ctx, config = {}) {
           return json(res, 200, { ok: true, days: service.reportDays(7) })
         }
 
+        // ── 运行环境：Python / 登录 / 模型 / 诊断 ──────────────────────────
+        if (path === '/models' && !isPost) {
+          const r = await listModels(ctx)
+          return json(res, 200, { ok: true, ...r, current: currentDefault(ctx) })
+        }
+
+        if (path === '/python' && !isPost) {
+          return json(res, 200, { ok: true, ...(await service.pythonInfo()) })
+        }
+
+        if (path === '/python' && isPost) {
+          // 装环境要几分钟，这里不阻塞界面：先回一句"开始了"，进度看 /status 的日志尾巴
+          service.setupPython().then((r) => log(`装 Python 环境：${r.ok ? '好' : `失败（${r.stage || ''}）`}`)).catch(() => {})
+          return json(res, 202, { ok: true, text: '开始装了，几分钟。装完这个页面刷新一下就能看到。' })
+        }
+
+        if (path === '/login/start' && isPost) {
+          const r = await service.biliLoginStart()
+          // 二维码是个本地 PNG 文件，浏览器读不到盘 —— 转成 data URL 递过去
+          let qr = ''
+          if (r.png) {
+            try {
+              qr = `data:image/png;base64,${readFileSync(r.png).toString('base64')}`
+            } catch { qr = '' }
+          }
+          return json(res, 200, { ok: true, key: r.key, url: r.url, qr })
+        }
+
+        if (path === '/login/poll' && isPost) {
+          const body = await readBody(req)
+          const key = String(body?.key || '').trim()
+          if (!key) return json(res, 400, { ok: false, text: '没给 key' })
+          const r = await service.biliLoginPoll(key)
+          return json(res, 200, { ok: true, ...r })
+        }
+
+        if (path === '/whoami' && !isPost) {
+          return json(res, 200, service.biliWho())
+        }
+
+        if (path === '/diagnose' && !isPost) {
+          return json(res, 200, service.diagnose())
+        }
+
+        if (path === '/review' && isPost) {
+          const r = await service.reviewComments({ max: 6 })
+          return json(res, 200, { ok: true, ...r })
+        }
+
+        if (path === '/import' && isPost) {
+          const r = service.importOld()
+          return json(res, 200, r)
+        }
+
+        if (path === '/move-home' && isPost) {
+          const body = await readBody(req)
+          const r = service.changeHome(body?.dir || body?.outputDir || '', { confirm: Boolean(body?.confirm) })
+          return json(res, r.ok ? 200 : 409, r)
+        }
+
         return json(res, 404, { ok: false, text: `没有这个口子：${path}` })
       } catch (e) {
         log(`路由 ${path} 炸了：${e?.message || e}`)
@@ -264,11 +369,41 @@ export function apply(ctx, config = {}) {
     },
   }), 'caifeng: web route')
 
+  /**
+   * 路由一注册就把宿主地址写给桥。
+   * 端口要监听之后才知道，所以 getOrigin() 此刻可能还抛错 —— 那就退避重试，
+   * 直到写成功为止（每轮 duty 都会重新读这个文件，所以只要最终写上就行）。
+   */
+  ctx.effect(() => {
+    let timer = null
+    let delay = 200
+    let tries = 0
+    let done = false
+    const attempt = () => {
+      timer = null
+      if (done || tries >= 12) return
+      tries += 1
+      const r = dyHost.publish()
+      if (r.ok) { done = true; return }
+      delay = Math.min(delay * 2, 5000)
+      timer = setTimeout(attempt, delay)
+      timer.unref?.()
+    }
+    attempt()
+    return () => {
+      done = true
+      if (timer) clearTimeout(timer)
+    }
+  }, 'caifeng: dy handshake')
+
   // ── 调度 ──────────────────────────────────────────────────────────────────
   ctx.effect(() => {
     service.startTimer()
     return () => service.stopTimer()
   }, 'caifeng: scheduler')
+
+  // 卸载时只断 CDP，不关浏览器 —— 登录态要留着，下次还要接着用
+  ctx.effect(() => () => { dyHost.close().catch(() => {}) }, 'caifeng: dy close')
 
   // 服务：只暴露三个口子（别再多了）
   ctx.set?.('tianshuCaifeng', {

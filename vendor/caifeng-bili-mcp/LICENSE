@@ -1,3 +1,12 @@
+本目录（天枢·采风 vendor/caifeng-bili-mcp）的 server.py 是**衍生自 AGI_Ananas/bilibili-mcp** 的
+作品（上游仓库：https://github.com/AGI_Ananas/bilibili-mcp ，MIT 许可）。
+我们在它的实现手法上做了取舍与增补（工具白名单、语感闸门、凭证容错、画面帧、窄口本地 IO 等，
+详见 server.py 文件头注释）。
+
+下面是上游的原版 MIT 许可证，原样保留：
+
+--------------------------------------------------------------------------------
+
 MIT License
 
 Copyright (c) 2026 AGI_Ananas
