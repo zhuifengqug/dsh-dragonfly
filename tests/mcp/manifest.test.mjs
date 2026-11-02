@@ -144,6 +144,14 @@ test('B站 MCP：白名单与语感闸门的开关环境变量名没写歪', () 
     '凭证要从 <家>/creds/bili-credential.json 读')
 })
 
+test('B站 MCP：单片笔记受 CAIFENG_NOTES 管，关掉就不落盘', () => {
+  const source = readFileSync(python, 'utf8')
+  assert.match(source, /CAIFENG_NOTES/, '单片笔记的开关变量名必须是 CAIFENG_NOTES')
+  // 落盘那行必须带着开关判断，否则"关了还在写"这件事会静默发生
+  assert.match(source, /if vid and detail and not _NOTES_OFF:/,
+    'detail 落盘必须同时看 _NOTES_OFF')
+})
+
 test('两份 requirements 里的 mcp 都锁在 1.x（2.x 起不来）', () => {
   const req = readFileSync(join(repo, 'vendor', 'caifeng-bili-mcp', 'requirements.txt'), 'utf8')
   const line = req.split('\n').find((l) => /^mcp\b/i.test(l.trim()))

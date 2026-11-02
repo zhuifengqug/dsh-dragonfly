@@ -7,10 +7,16 @@
  * ============================================================================
  */
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { briefFromConfig, renderCharter } from '../../lib/charter.mjs'
 import { DEFAULTS, clampConfig } from '../../lib/config.mjs'
+
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const CHARTER = readFileSync(join(REPO, 'prompts', 'duty.md'), 'utf8')
 
 const layout = {
   home: 'D:/home/tianshu-caifeng',
@@ -130,4 +136,37 @@ test('renderCharter 把配置段接在章程尾巴上，不插进正文中间', 
   assert.ok(bodyAt >= 0 && briefAt > bodyAt, '配置段应该在正文之后')
   assert.match(out, /点了「现在就跑」/)
   assert.match(out, /最多收几条：4 条/)
+})
+
+// ── 章程正文里写死的纪律（改章程时容易一句话删掉，钉住）──────────────
+test('章程写明：被语感闸门拦下只改一次，第二次就不发', () => {
+  assert.match(CHARTER, /只改一次/)
+  assert.match(CHARTER, /这条没发/)
+  assert.match(CHARTER, /blocked_by/)
+  assert.match(CHARTER, /不要反复重试/)
+})
+
+test('章程写明：没有 rpid 别编，宿主会写「未取到 rpid」', () => {
+  assert.match(CHARTER, /rpid/)
+  assert.match(CHARTER, /别自己编/)
+  assert.match(CHARTER, /未取到 rpid/)
+})
+
+test('章程写明：评论的两个条件不是模型自己判断的，是工具给不给', () => {
+  assert.match(CHARTER, /不是你来判断的/)
+  assert.match(CHARTER, /压根不在你手里/)
+})
+
+test('章程写明：私信节不许出现设置项名字和内部术语', () => {
+  assert.match(CHARTER, /别在里面出现设置项的名字和内部术语/)
+  assert.match(CHARTER, /dmMode/)
+})
+
+test('章程写明：判重是「处理过」而不是「收过」', () => {
+  assert.match(CHARTER, /处理过/)
+  assert.match(CHARTER, /弃掉的也算处理过/)
+})
+
+test('章程写明：不许为了凑数硬收', () => {
+  assert.match(CHARTER, /不要为了凑数硬收/)
 })

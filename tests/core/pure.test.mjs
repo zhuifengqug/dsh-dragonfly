@@ -3,7 +3,7 @@ import { test } from 'node:test'
 
 import { clampConfig, DEFAULTS, diffKeys, pickKnownKeys } from '../../lib/config.mjs'
 import { appendRow, emptySeen, formatRow, parseSeen, seenDay, seenToday, sectionOfId, splitOld } from '../../lib/seen.mjs'
-import { countPicks, mergeReport, reportView, tierOf } from '../../lib/report.mjs'
+import { countPicks, emptyReport, mergeReport, reportView, tierOf } from '../../lib/report.mjs'
 import { autoWindowState, dayKey, inWindow, nextWindowLabel, parseWindow } from '../../lib/clock.mjs'
 
 // ── 判重表 ───────────────────────────────────────────────────────────────────
@@ -235,3 +235,89 @@ test('dayKey 用本机日期', () => {
 })
 
 
+
+test('reportView 把「因缺证据跳过」「扫过没收的」「总结」都分开给，界面才不会把它们混成条目', () => {
+  const text = [
+    '# 2026-11-02',
+    '',
+    '### [B站] BV1xx411c7mD / 一条',
+    '',
+    '**档位**：值得看',
+    '**为什么值得**：12 分钟讲了三件事',
+    '',
+    '## 扫过没收的',
+    '',
+    '- [B站] BV1yy411c7mE / 标题党：字幕全是废话',
+    '',
+    '## 因缺证据跳过',
+    '',
+    '- [B站] BV1zz411c7mF / 纯口播，没字幕',
+    '',
+    '## 总结',
+    '',
+    '今天就这样。',
+  ].join('\n')
+
+  const v = reportView(text)
+  assert.equal(v.day, '2026-11-02')
+  const byKey = Object.fromEntries(v.sections.map((s) => [s.key || s.title, s]))
+  assert.equal(byKey.picks?.entries.length, 1)
+  assert.equal(byKey.picks.entries[0].tier, '值得看')
+  assert.equal(byKey.picks.entries[0].hasNumbers, true)
+  assert.match(byKey['skipped']?.lines.join('\n') ?? '', /标题党/)
+  assert.match(byKey['skipped-no-evidence']?.lines.join('\n') ?? '', /纯口播/)
+  assert.match(byKey['summary']?.lines.join('\n') ?? '', /今天就这样/)
+})
+
+test('薄版日报（只有标题行 + 档位 + 一句话）仍然解析得出档位与条目', () => {
+  const text = [
+    '# 2026-11-02',
+    '',
+    '### [B站] BV1xx411c7mD / 一条',
+    '',
+    '**档位**：值得看',
+    '**我的一句话**：12 分钟讲透了三件事，第 8 分钟那张图值得截。',
+    '',
+    '## 总结',
+    '',
+    '薄版也完整。',
+  ].join('\n')
+
+  const v = reportView(text)
+  const picks = v.sections.find((s) => s.key === 'picks')
+  assert.ok(picks, '薄版也应该有 picks 节')
+  assert.equal(picks.entries.length, 1)
+  assert.equal(picks.entries[0].tier, '值得看')
+  assert.doesNotMatch(picks.entries[0].body, /为什么值得/, '薄版不写那一段')
+  assert.equal(picks.entries[0].hasNumbers, true, '薄版也要有具体数字，只是挪进那句话里')
+})
+
+test('mergeReport 不写出空的 `## ` 标题 —— 主节条目直接跟在日期下面', () => {
+  const incoming = [
+    '### [B站] BV1xx411c7mD / 一条',
+    '',
+    '**档位**：值得看',
+    '**为什么值得**：12 分钟讲了三件事',
+    '',
+    '## 总结',
+    '',
+    '今天就这样。',
+  ].join('\n')
+  const { text } = mergeReport(emptyReport('2026-11-02'), incoming, '2026-11-02')
+  assert.doesNotMatch(text, /^##\s*$/m, '不能出现只有 `## ` 没有名字的小标题')
+  // 条目必须紧跟 `# 日期`
+  assert.match(text, /^# 2026-11-02\n\n### \[B站\]/, '主节条目要紧跟日期，不另起小标题')
+  assert.match(text, /^## 总结$/m)
+})
+
+test('mergeReport 把 `## 今天挑的` 这种显式写法归到主节，不重复成第二节', () => {
+  const incoming = [
+    '## 今天挑的',
+    '',
+    '### [B站] BV1xx411c7mD / 一条',
+    '',
+    '**档位**：值得看',
+  ].join('\n')
+  const { text } = mergeReport(emptyReport('2026-11-02'), incoming, '2026-11-02')
+  assert.equal((text.match(/BV1xx411c7mD/g) || []).length, 1, '同一条只能出现一次')
+})

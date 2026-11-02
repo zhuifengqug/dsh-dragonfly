@@ -132,3 +132,14 @@ test('槽位不存在时不影响其他槽位（缺一个也照样起）', async
   assert.doesNotThrow(() => mod.apply({ get: () => slots, effect: () => {} }))
   assert.equal(registrations.length, 2, '主区页与设置页仍然应该注册上')
 })
+
+test('切私信到 auto 要单独确认一次，且拿不到 confirm 时按"不切"处理', async () => {
+  const source = await readFile(SOURCE, 'utf8')
+  // 唯一一处「选下去就真对外说话」的开关，不能一点就切
+  assert.match(source, /setDmMode/, 'dmMode 的 onChange 必须走 setDmMode，不能直接 set')
+  assert.match(source, /window\.confirm/, '要真的问一句')
+  assert.match(source, /发出去就收不回来/)
+  // 没有 confirm 的环境（比如被裁掉的客户端）必须当"没同意"，不能默认放行
+  assert.match(source, /typeof window\.confirm === 'function'[\s\S]{0,120}:\s*false/,
+    '拿不到 confirm 要退成 false（不同意），不能退成 true')
+})

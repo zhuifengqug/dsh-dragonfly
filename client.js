@@ -82,6 +82,12 @@ window.__ModuleLoader__.load({
 [data-cf-body]{font-size:13px;line-height:21px;white-space:pre-wrap;}
 [data-cf-empty]{padding:28px 0;text-align:center;font-size:13px;
   color:var(--dsw-alias-label-tertiary,#8b9199);}
+[data-cf-run]{appearance:none;border:1px solid var(--dsw-alias-border-secondary,#d9dde2);margin:8px 0 6px;
+  background:var(--dsw-alias-bg-elevated,#fff);border-radius:8px;padding:5px 14px;cursor:pointer;
+  font-size:13px;font-family:inherit;color:inherit;}
+[data-cf-run]:hover:not(:disabled){border-color:var(--dsw-alias-brand-primary,#4c7dff);
+  color:var(--dsw-alias-brand-primary,#4c7dff);}
+[data-cf-run]:disabled{opacity:.5;cursor:default;}
 [data-cf-days]{display:flex;gap:8px;flex-wrap:wrap;}
 [data-cf-day]{appearance:none;border:0;background:transparent;cursor:pointer;font-size:11px;
   color:var(--dsw-alias-label-tertiary,#8b9199);padding:2px 0;}
@@ -131,7 +137,7 @@ window.__ModuleLoader__.load({
     }
 
     // ── 「今天」页签（主区与设置页共用，设置页里是精简版） ────────────────────
-    function TodayPanel({ compact }) {
+    function TodayPanel({ compact, onRun, busy }) {
       const [day, setDay] = useState('')
       const [days, setDays] = useState([])
       const [data, setData] = useState(null)
@@ -157,6 +163,15 @@ window.__ModuleLoader__.load({
       const view = data?.view
       const entries = view ? view.sections.flatMap((s) => s.entries.map((e) => ({ ...e, section: s.title }))) : []
 
+      // 空态自带一个「现在就跑」：新装的人第一眼看到的就是这里，
+      // 让他在原地就能开始，别逼他先去找上面那条状态带。
+      const runBtn = (text) => (onRun
+        ? h('button', {
+          type: 'button', 'data-cf-run': '', disabled: busy ? '' : undefined,
+          onClick: onRun,
+        }, busy ? '跑着呢…' : text)
+        : null)
+
       return h('div', { 'data-cf-page': '', 'data-cf-wide': compact ? undefined : '' },
         h(StyleTag, null),
 
@@ -169,7 +184,8 @@ window.__ModuleLoader__.load({
         !data ? h('div', { 'data-cf-empty': '' }, '正在读…')
           : !data.exists ? h('div', { 'data-cf-empty': '' },
             h('div', null, '还没采过。'),
-            h('div', { 'data-cf-note': '' }, '到点会自动跑一轮，也可以在上面点「现在就跑」。'))
+            runBtn('现在就跑'),
+            h('div', { 'data-cf-note': '' }, '到点会自动跑一轮，也可以现在点一下。'))
             : entries.length === 0
               ? h('div', { 'data-cf-empty': '' }, '这一天的日报是空的。')
               : h('div', null, entries.map((e) => h('div', { key: e.id || e.title, 'data-cf-entry': '' },
@@ -512,7 +528,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
           h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')),
         tab === 'today'
-          ? h(TodayPanel, { compact: false })
+          ? h(TodayPanel, { compact: false, onRun: run, busy })
           : h(SettingsPanel, { status, onSaved: refresh }),
       )
     }
@@ -521,6 +537,8 @@ window.__ModuleLoader__.load({
     function SettingsSection() {
       const [tab, setTab] = useState('today')
       const [status, setStatus] = useState(null)
+      const [busy, setBusy] = useState(false)
+      const [msg, setMsg] = useState('')
 
       // 设置页里没有主区那条状态带，所以这里自己读一次 —— 运行环境那一段要用它
       const refresh = useCallback(() => {
@@ -528,12 +546,25 @@ window.__ModuleLoader__.load({
       }, [])
       useEffect(() => { refresh() }, [refresh])
 
+      const run = async () => {
+        setBusy(true); setMsg('')
+        try {
+          const r = await jpost('/run')
+          setMsg(r.ok ? (r.text || '跑完了。') : (r.text || '没跑成。'))
+          refresh()
+        } catch (e) { setMsg(`没跑成：${e.message || e}`) }
+        finally { setBusy(false) }
+      }
+
       return h('div', { 'data-cf-page': '' },
         h(StyleTag, null),
         h('div', { 'data-cf-tabs': '' },
           h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
           h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')),
-        tab === 'today' ? h(TodayPanel, { compact: true }) : h(SettingsPanel, { status, onSaved: refresh }),
+        msg ? h('div', { 'data-cf-note': '' }, msg) : null,
+        tab === 'today'
+          ? h(TodayPanel, { compact: true, onRun: run, busy })
+          : h(SettingsPanel, { status, onSaved: refresh }),
       )
     }
 
