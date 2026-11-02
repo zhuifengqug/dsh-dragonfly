@@ -1,8 +1,13 @@
 {
   "name": "dsh-profile-caifeng-duty",
   "private": true,
-  "bundles": [
-    "@deepseek-ai/dsh-base",
-    "@deepseek-ai/dsh-headless"
-  ]
+  "dependencies": {},
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless"
+      ]
+    }
+  }
 }

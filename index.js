@@ -43,12 +43,16 @@ const describe = (spec) => spec.extra('volatile', true)
 /**
  * Config 形状。范围一律**不在这里做**（schema 校验不过会被 cordis 拒收 ⇒ 整条插件不激活），
  * 全部交给 lib/config.mjs 的 clamp。
+ *
+ * ⚠️ 嵌套对象（`sources` / `model`）**外面那层不许标 volatile**：
+ *    cordis 说「volatile 字段要求一条固定的对象路径，且外层不能也是 volatile」，
+ *    标了就会抛 ValidationError，整条插件不激活。只标里面那层。
  */
 export const Config = !z ? undefined : z.object({
-  sources: describe(z.object({
+  sources: z.object({
     bili: describe(z.boolean()),
     douyin: describe(z.boolean()),
-  })),
+  }),
   perDay: describe(z.number()),
   dyDailyMinutes: describe(z.number()),
   fetchPerRound: describe(z.number()),
@@ -68,10 +72,10 @@ export const Config = !z ? undefined : z.object({
   notesEnabled: describe(z.boolean()),
   favoritesEnabled: describe(z.boolean()),
   favoritesDays: describe(z.number()),
-  model: describe(z.object({
+  model: z.object({
     provider: describe(z.string()),
     model: describe(z.string()),
-  })),
+  }),
   autoComment: describe(z.boolean()),
   commentPerRound: describe(z.number()),
   commentLength: describe(z.string()),
@@ -183,10 +187,12 @@ export function apply(ctx, config = {}) {
   }), 'caifeng: tool config')
 
   // ── 命令 ──────────────────────────────────────────────────────────────────
+  // ⚠️ 别给 `input: { hint: '' }`：宿主要求 hint 非空，空串会抛
+  //    `command "caifeng" input hint must not be empty`，整条插件就不激活了。
+  //    这个命令不吃参数，直接不传 input。
   ctx.effect(() => ctx.commands.register({
     name: 'caifeng',
     description: '立刻跑一轮采风',
-    input: { hint: '', attachments: false },
     handler: async () => {
       const res = await service.run('manual')
       return res.ok
@@ -406,11 +412,18 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => () => { dyHost.close().catch(() => {}) }, 'caifeng: dy close')
 
   // 服务：只暴露三个口子（别再多了）
-  ctx.set?.('tianshuCaifeng', {
-    status: () => service.status(),
-    run: () => service.run('manual'),
-    config: () => service.config,
-  })
+  // ⚠️ 必须是 `ctx.provide`，不是 `ctx.set` —— cordis 的 set 只改「已经 provide 过」的服务，
+  //    直接 set 会抛 `cannot set property "tianshuCaifeng" without provide`。
+  //    provide 自己已经挂在 fiber.effect 上，卸载自动回收，这里不用再包一层。
+  if (typeof ctx.provide === 'function') {
+    ctx.provide('tianshuCaifeng', {
+      status: () => service.status(),
+      run: () => service.run('manual'),
+      config: () => service.config,
+    })
+  } else {
+    log('宿主没有 ctx.provide，tianshuCaifeng 服务没挂上（工具与界面照常）')
+  }
 
   log(`采风起来了：家在 ${service.layout.home}`)
   void text

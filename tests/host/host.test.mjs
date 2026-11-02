@@ -30,6 +30,12 @@ function makeCtx(home) {
     services,
     get: (k) => services.get(k),
     set: (k, v) => services.set(k, v),
+    // 宿主是 cordis：服务要用 provide 挂（set 只能改已 provide 过的）
+    provide: (k, v) => {
+      if (services.has(k)) throw new Error(`service "${k}" has been registered`)
+      services.set(k, v)
+      return () => { services.delete(k) }
+    },
     effect: (fn, label) => {
       const cleanup = fn()
       effects.push({ label, cleanup })
