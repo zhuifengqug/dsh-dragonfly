@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "policy": "dsh-plugin-naming/v1",
+  "plugin": {
+    "namespace": "zhuifengqug",
+    "name": "tianshu-caifeng",
+    "coordinate": "zhuifengqug/tianshu-caifeng",
+    "packageName": "@zhuifengqug/dsh-tianshu-caifeng"
+  },
+  "names": {
+    "pluginNames": ["tianshu-caifeng"],
+    "loaderIds": ["zhuifengqug-tianshu-caifeng"],
+    "services": ["tianshuCaifeng"],
+    "tools": [
+      "caifeng_bili_search",
+      "caifeng_bili_subtitle",
+      "caifeng_bili_comments",
+      "caifeng_bili_frames",
+      "caifeng_bili_favorites",
+      "caifeng_bili_reply",
+      "caifeng_bili_dm",
+      "caifeng_dy_open",
+      "caifeng_dy_state",
+      "caifeng_dy_next",
+      "caifeng_dy_frames",
+      "caifeng_report_write",
+      "caifeng_seen",
+      "caifeng_status",
+      "caifeng_run",
+      "caifeng_config"
+    ],
+    "commands": ["caifeng"],
+    "skills": [],
+    "skillProviders": [],
+    "events": [],
+    "settingsNamespaces": ["caifeng"],
+    "routes": ["/api/caifeng"]
+  }
+}
