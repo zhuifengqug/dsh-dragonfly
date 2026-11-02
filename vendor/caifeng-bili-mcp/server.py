@@ -1493,10 +1493,19 @@ def caifeng_report_write(date: str = "", entries: str = "", skipped: str = "", n
         key = f"id:{vid}" if vid else f"raw:{line}"
         prev_skips[key] = line
 
-    summary_lines = [l for l in (sections.get("总结") or []) if l.strip()]
+    # ⚠️ 一条既然已经收进「挑的」，就不该同时挂在「扫过没收的」下面。
+    #    真机上出现过同一条两头都在（模型自己补了句"上一轮已经处理过"塞进 skipped），
+    #    读日报的人第一眼就会觉得自相矛盾。
+    prev_skips = {k: v for k, v in prev_skips.items() if k not in picks}
+
+    # ⚠️ 「总结」以**这一轮**为准：给了 note 就把上一轮的总结整段换掉。
+    #    同一天跑第二轮时，两段互相矛盾的总结同时躺在报告里（上一轮说"没跑成"、
+    #    这一轮说收了几条）是真机上出过的事故，不能靠拼接。
     note_body = " ".join(str(note or "").split())
     if note_body:
-        summary_lines.append(note_body)
+        summary_lines = [note_body]
+    else:
+        summary_lines = [l for l in (sections.get("总结") or []) if l.strip()]
 
     # ── 渲染（顺序固定）────────────────────────────────────────────────────
     out = [f"# {day}", ""]

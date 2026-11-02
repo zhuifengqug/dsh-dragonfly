@@ -448,7 +448,39 @@ export class BrowserController {
       await sleep(200)
     }
     await sleep(400)
+    // 抖音是客户端渲染：`readyState:complete` 之后推荐流还要再等一会儿才有作品。
+    // 真机上紧接着读 state() 会读到 `pageKind:'unknown'` / 一闪而过的 `live-preview`，
+    // 而 duty 那一轮只读一次状态 —— 读到 unknown 就按规矩跳过，这一趟白跑。
+    // 所以在这里等到「能认出这是什么页」为止（最多 12 秒），等不到也照常返回，
+    // 让 state() 去说它看到的实情，不在这里编。
+    await this.settleState()
     return { ok: true, url: page.url() }
+  }
+
+  /**
+   * 等页面「认得出是什么」再交回去。
+   * · `video` / `search` ⇒ 立刻认
+   * · `live-preview` / `unknown` ⇒ 继续等（推荐流刚打开时先挂直播卡、再换成作品，
+   *   真机上就是「第一次读到 live-preview、一秒后读到 video」）
+   * 超时返回最后一次看到的状态，不抛。
+   */
+  async settleState(timeoutMs = 12_000) {
+    const started = Date.now()
+    let last = null
+    while (Date.now() - started < timeoutMs) {
+      let snapshot
+      try {
+        snapshot = await this.state()
+      } catch {
+        snapshot = null
+      }
+      if (snapshot) {
+        last = snapshot
+        if (snapshot.pageKind === 'video' || snapshot.pageKind === 'search') return snapshot
+      }
+      await sleep(700)
+    }
+    return last
   }
 
   /** state()：页面内跑 readPageState，返回它的形状 */
