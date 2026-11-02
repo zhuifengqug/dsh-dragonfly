@@ -124,6 +124,7 @@ export function apply(ctx, config = {}) {
     origin: () => {
       try { return ctx.webServer?.getOrigin?.() } catch { return undefined }
     },
+    budget: () => service.dyBudget(),
     log,
   })
 

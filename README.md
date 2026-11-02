@@ -61,50 +61,53 @@ bili 真正值钱的三件事，抖音一件都没有：
 ```
 天枢-采风/
 ├─ package.json
-├─ index.js                    host 入口：配置、路由、工具注册、调度
+├─ index.js                    host 入口：配置、路由、工具注册、调度、抖音宿主这一头
 ├─ client.js                   设置页 + 主区页（一套视觉，两边样式都不复用）
 ├─ cordis.patch.yml            bundle patch
 ├─ icon.svg
 ├─ dsh-plugin.naming.json
-├─ locale/{zh-CN,en}.json
+├─ locale/zh-CN.json
 ├─ prompts/
 │  └─ duty.md                  值班章程（B站/抖音合写，人格内联）
 ├─ profile-template/
 │  └─ caifeng-duty/
 │     ├─ cordis.patch.yml      受限 profile（照 bili 的边界改 id）
 │     ├─ cordis.yml
-│     └─ package.json
+│     └─ package.json          ⚠️ bundles 必须写在 dsh.profile.bundles 里
 ├─ lib/
 │  ├─ paths.mjs                家目录解析（可配置根 + $DSH_HOME 回退）
-│  ├─ state.mjs                配置读写、额度计数、运行锁
-│  ├─ seen.mjs                 判重表读写
-│  ├─ report.mjs               日报拼装与写入（含单片笔记）
-│  ├─ charter.mjs              章程校验（sha256）+ 每轮注入
+│  ├─ state.mjs                磁盘读写、日志、运行锁、当日计数、章程铺设
+│  ├─ clock.mjs                时窗判定（北京时区、跨零点、谷时）
+│  ├─ config.mjs               默认值与钳制（永不抛）、volatile 脱壳
+│  ├─ seen.mjs                 判重表读写（扫描定位 id，不认列位）
+│  ├─ report.mjs               日报拼装与合并（按 id 整条替换）
+│  ├─ charter.mjs              章程取件 + 把设置页的值讲给模型听
+│  ├─ duty.mjs                 profile 铺设、overlay 生成、dsh/node 解析、spawn
+│  ├─ service.mjs              宿主这一头：状态、跑一轮、调度、写口
+│  ├─ dy-host.mjs              抖音宿主侧：令牌握手、分钟数闸门、动作分派
+│  ├─ mcp.mjs                  极简 MCP stdio 客户端（宿主侧调试与验证用）
 │  ├─ models.mjs               采风模型的候选列表与解析
 │  ├─ login.mjs                B站扫码登录
-│  ├─ verify.mjs               运行时自检
-│  ├─ diagnose.mjs             诊断
+│  ├─ verify.mjs               评论复核
+│  ├─ diagnose.mjs             把日志尾巴翻成一句人话
+│  ├─ migrate.mjs              从旧 bili-duty 导入 / 换存放位置
 │  ├─ uvfetch.mjs              Python 运行时（uv venv 管理）
-│  └─ hostdeps.mjs             Python/uv 探测
-├─ bili/
-│  ├─ search.mjs
-│  ├─ subtitle.mjs
-│  ├─ comments.mjs
-│  ├─ frames.mjs               故事板取帧
-│  ├─ favorites.mjs            收藏夹最近
-│  ├─ reply.mjs                发评论 / 回复
-│  ├─ dm.mjs                   私信
-│  └─ mcp.mjs                  B站 MCP 通道（vendor 内嵌）
+│  └─ hostdeps.mjs             从宿主树解析 schemastery / dsh-tools
 ├─ dy/
 │  ├─ core.mjs                 抖音浏览器层（修剪版，见 §12）
-│  ├─ browser-launcher.mjs     专用 Edge 启动/连接
-│  ├─ browser-host.mjs
-│  ├─ browser-pages.mjs        页归属与锁
-│  ├─ browser-pause.mjs
-│  ├─ video-storyboard.mjs     分镜帧
-│  └─ tools.mjs                4 个抖音工具的定义与参数校验
-├─ vendor/bilibili-mcp/
+│  ├─ browser-host.mjs         专用 Edge 启动/连接、playwright 解析、端口挑选
+│  ├─ tools.mjs                4 个抖音动作的定义与失败码
+│  └─ mcp-bridge.mjs           极简 MCP 服务：把 duty 轮的工具调用转回宿主
+├─ vendor/caifeng-bili-mcp/
+│  ├─ server.py                B站 MCP 服务（9 个工具，白名单在注册期过滤）
+│  ├─ requirements.txt
+│  └─ LICENSE
 └─ tests/
+   ├─ core/                    纯函数
+   ├─ host/                    宿主面（假 ctx）+ 抖音宿主侧
+   ├─ client/                  客户端自注册
+   ├─ dy/                      抖音浏览器层（假 controller + DOM 桩）
+   └─ mcp/                     两条 MCP 的清单与白名单
 ```
 
 `package.json` 要点（照 `天枢-蜂群` 的规范）：
@@ -127,7 +130,11 @@ bili 真正值钱的三件事，抖音一件都没有：
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-settings-general"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
   }
 }
@@ -145,13 +152,23 @@ bili 真正值钱的三件事，抖音一件都没有：
 ├─ out/2026-11-01.md        日报，按日期
 ├─ reports/BV1xx.md         单片笔记（notesEnabled 时写）
 ├─ seen.md                  判重表（§8）
+├─ seen/2026-10.md          判重表滚动归档（超过 30 天的行挪这里）
+├─ state.json               当天计数（收了几条、跑了几次、抖音看了几秒）
 ├─ duty.md                  章程副本
 ├─ charter.sha256           章程指纹
-├─ duty.log                 值班日志
-├─ run-lock.json            运行锁
+├─ duty.log                 值班日志（超过 512KB 滚成 .1）
+├─ run-lock.json            运行锁（10 分钟过期，fail-open）
+├─ comments.md              评论台账（发了什么、rpid 是多少）
+├─ verify-state.json        评论复核的记账（7 天内核过的跳过）
+├─ qrcode_login.png         B站登录二维码（设置页摆出来用）
+├─ mcp_server.py            B站 MCP 服务（从 vendor 铺过来，那一轮起的是这一份）
+├─ headless-overlay.yml     每一轮重写的 overlay
+├─ .venv/                   Python 环境（uv 建，装 mcp / bilibili-api / Pillow / qrcode）
 ├─ creds/bili-credential.json
 ├─ dy/profile/              专用 Edge 的 user-data-dir（持久登录）
-└─ dy/control/              浏览器锁
+└─ dy/control/
+   ├─ host.json             宿主地址 + 令牌（桥靠它找回来）
+   └─ port.json             专用 Edge 的调试端口
 ```
 
 改根目录时的规则：
@@ -169,40 +186,53 @@ bili 真正值钱的三件事，抖音一件都没有：
 
 16 个工具，前缀统一 `caifeng_`。
 
-### B站
+B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng-bili-mcp/server.py`），抖音那 4 个在 **Node 薄桥**里（`dy/mcp-bridge.mjs`），三个 `status`/`run`/`config` 在宿主进程里。duty 那一轮只看得见前两条 MCP 挂进来的 13 个。
+
+### B站（Python MCP）
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `caifeng_bili_search` | `{ keyword, sort?: 'pubdate'\|'click'\|'totalrank', pages?: 1-5 }` | `[{ bvid, title, author, play, duration, pubdate, desc }]` |
-| `caifeng_bili_subtitle` | `{ bvid }` | `{ ok, lang, text, chars }`；无字幕返回 `{ ok:false, reason:'no-subtitle' }` |
-| `caifeng_bili_comments` | `{ bvid, limit?: 1-50 }` | `[{ rpid, user, text, like, replies }]` |
-| `caifeng_bili_frames` | `{ bvid, at?: number[] }` | 图片附件（1-6 帧） |
-| `caifeng_bili_favorites` | `{ folder?: string, days?: 1-30 }` | `[{ bvid, title, author, favedAt, folder }]` |
-| `caifeng_bili_reply` | `{ bvid, rpid?: number, text, force?: true }` | `{ sent, rpid }`；`autoComment=false` 时拒绝，除非 `force:true`（本人当场授权） |
-| `caifeng_bili_dm` | `{ action: 'list'\|'read'\|'reply', uid?, text? }` | `list` → 最近会话；`read` → 消息；`reply` 受 `dmMode` 闸门 |
+| `caifeng_bili_search` | `keyword`、`num=10`、`order="totalrank"`、`page=1` | `{ keyword, count, videos:[{ bvid, aid, title, author, play, review, danmaku, duration, pubdate, description }] }` |
+| `caifeng_bili_subtitle` | `bvid` | `{ bvid, title, language, segments, text }`；无字幕 `{ ok:false, reason:'no-subtitle' }` |
+| `caifeng_bili_comments` | `bvid`、`num=30` | `{ count, comments:[{ rpid, user, content, like, reply_count, time }] }` |
+| `caifeng_bili_frames` | `bvid`、`num=3`（1-6）、`at=[秒]` | 图片附件 + `{ ok, duration, covered_sec, tile:'480x270', frames:[{ index, want_sec, got_sec, kb }], failed, note }` |
+| `caifeng_bili_favorites` | `folder=""`、`days=7` | `{ folders:[{ id, title, count }], items:[{ bvid, title, author, favedAt }] }` |
+| `caifeng_bili_reply` | `bvid`、`text`、`rpid=0`、`root=0` | `{ ok, sent, rpid }`；`autoComment=false` 时拒绝，除非 `force:true`（本人当场授权）；被语感闸门拦下回 `{ ok:false, sent:false, blocked_by:'style', error }` |
+| `caifeng_bili_dm` | `action: 'list'\|'read'\|'reply'`、`uid=0`、`text=""` | `reply` 受 `dmMode` 闸门；超 500 字符接口回 **code 21007** |
 
-### 抖音
-
-| 工具 | 参数 | 返回 |
-|---|---|---|
-| `caifeng_dy_open` | `{ query?: string }` | 状态快照；无 `query` 打开推荐流，有 `query` 走搜索 |
-| `caifeng_dy_state` | `{}` | `{ url, video:{id,author,title,time,duration,paused}, pageKind, searchResults[], visibleText, loginRequired, verificationRequired }` |
-| `caifeng_dy_next` | `{}` | 换下一条后的状态快照 |
-| `caifeng_dy_frames` | `{ seconds?: 1-10 }` | 图片附件 + `{ videoId, duration }` |
-
-### 本地与运维
+### 抖音（Node 桥 → 宿主）
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `caifeng_report_write` | `{ date?, entries:[{source,id,title,verdict,why,comment,detail?}], skipped:[{source,id,reason}], note? }` | `{ path, notes: string[], bytes }`；同一天多次调用按 `id` 合并去重；`detail` 存在且 `notesEnabled` 时另写 `reports/<id>.md` |
-| `caifeng_seen` | `{ check?: string[], mark?: [{source,id,verdict}] }` | `{ seen: string[], marked: number, total }` |
-| `caifeng_status` | `{}` | 今日条数/额度/下次窗口/最近日报路径/两信源可用性/当前模型 |
-| `caifeng_run` | `{}` | 立刻跑一轮（不等窗口），返回 `{ runId, startedAt }` |
-| `caifeng_config` | `patch: object` | 改配置并回读（只认 §9 字段） |
+| `caifeng_dy_open` | `query?` | `{ ok, query, url, state }`；无 `query` 打开推荐流，有 `query` 走搜索 |
+| `caifeng_dy_state` | — | `{ ok, state:{ pageKind, video:{id,author,title,time,duration,paused,viewport}, searchResults, loginRequired, verificationRequired } }` |
+| `caifeng_dy_next` | — | 换下一条后的状态；换不动回 `{ ok:false, reason:<reasonCode>, hint, state, before }`，不假装成功 |
+| `caifeng_dy_frames` | `seconds=3`（1-10） | 图片附件 + `{ ok, videoId, duration }` |
+
+`pageKind` 只有 `video` / `search` / `live-preview` / `unknown` 四种。`unknown` 就是「我看不出来」，那一轮该跳过，**不许猜**。
+
+### 本地与运维（Python MCP 那两个写口）
+
+| 工具 | 参数 | 返回 |
+|---|---|---|
+| `caifeng_report_write` | `date?`、`entries`（JSON **字符串**）、`skipped`（JSON **字符串**）、`note?` | `{ ok, path, added:[id], replaced:[id], notes:[单片笔记路径] }`；同一天多次调用按 `id` 整条替换；`detail` 存在且 `notesEnabled` 时另写 `reports/<id>.md`；`note` 给了就**整段替换**上一轮写的「总结」 |
+| `caifeng_seen` | `check`（JSON 字符串数组）、`mark`（JSON 字符串数组） | `{ seen:[id], unknown:[id], marked, total }`；一次调用同时能查能记 |
+
+`entries` / `skipped` / `check` / `mark` 都是 **JSON 字符串**而不是数组 —— MCP 的参数是字符串，模型得自己 `JSON.stringify`。
+
+### 宿主里那三个（只给用户会话）
+
+| 工具 | 参数 | 返回 |
+|---|---|---|
+| `caifeng_status` | — | 今日条数/额度/下次窗口/存放位置/两信源可用性/运行环境 |
+| `caifeng_run` | — | 立刻跑一轮（不等窗口）；额度与冷却照走 |
+| `caifeng_config` | `patch` | 改配置并回读（只认 §9 字段） |
 
 **登录、装 Python、诊断这类一次性运维不进工具**，全在设置页里做——它们需要人看二维码、需要进度条，做成工具只会污染 duty 会话的工具箱。
 
 **duty 会话白名单**：B站 7 + 抖音 4 + `report_write` + `seen` = 13 个。`status`/`run`/`config` 只给用户自己的会话。
+
+**白名单是在「注册期」生效的，不是「调用期」**：`server.py` 的 `@tool()` 装饰器读 `CAIFENG_BILI_TOOLS`，名单外的函数连 `tools/list` 里都不出现；`mcp-bridge.mjs` 同理读 `CAIFENG_TOOLS`。所以那一轮不是「有个工具但调不动」，而是**根本没见过这个工具**。
 
 ---
 
@@ -232,7 +262,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 - [B站] 1 条：无字幕
 
 ## 私信
-- 3 条新私信，其中 2 条值得回
+- 收到 3 条，其中 2 条值得回（`dmMode=draft` 时把想回的话写在这里当草稿，`read` 时只写收到了什么）
 
 ## 判重
 今天新记 7 条，累计 128 条
@@ -244,26 +274,58 @@ bili 真正值钱的三件事，抖音一件都没有：
 约束：
 
 - 每条必须有 `[B站]` 或 `[抖音]` 前缀，跨信源按"值得看"优先排序
+- `档位` 只有三个值：`值得看` / `可以看` / `不值当`；判成 `值得看` 必须有字幕或画面证据
 - `为什么值得` 不许空话；写不出具体理由就降到 `扫过没收的`
-- 同一天重复跑，按 `id` 合并而不是追加新文件
+- 同一天重复跑，按 `id` **整条替换**而不是追加；「总结」以最后一轮为准，不拼接
+- 一天只有一份，永远不新建第二个文件
+- 一条既然收进了「今天挑的」，就不许同时挂在「扫过没收的」下面
+- 「因无字幕跳过 N 条」N=0 也要写出来 —— 空是一种结果，不是失败
 - 「私信」节只在 `dmEnabled` 且有新消息时出现
+
+**私信这一节只写「收到了什么」**，不写「发了什么」：采风的产出只落日报，从不往任何人的私信里发东西（`dmMode=auto` 也只是在日报里记下回了什么，投递目标永远是本人）。
+
+### 宿主自己追加的小节
+
+那一条轮次结束后，宿主会做两件它自己负责的事，写成独立小节附在日报末尾：
+
+```markdown
+## 评论复核（宿主自动跑的，不是那一轮自己说的）
+- `BV173xP6kE5E` rpid **322726703680** —— 公开可见（赞 0） · 依据：顶层·最新一页
+```
+
+- 只在 `autoComment` 为真、且这一轮确实试过发评论时才出现
+- 措辞只准「公开可见」或「**没查到**」——「没查到」不等于「没发出去」，写清楚别让人误会
+- 取不到 `rpid` 就写「未取到 rpid，这条没法核（不猜）」，绝不编一个数字
+- 同一轮触发两次也只出现一遍（写之前先把它切掉再写）
 
 ---
 
 ## 8. 判重表
 
-`seen.md`，分信源两节，同 id 只记一次：
+`seen.md`，分信源两节，同一天同一条只记一行：
 
 ```markdown
+# 见闻录
+
 ## B站
-BV1xx  2026-11-01  收
-BV1yy  2026-11-01  弃
+
+| 日期 | id | 标题 | UP | 状态 |
+| ---- | -- | ---- | -- | ---- |
+| 2026-11-01 | BV1xx411c7mD | 标题 | UP 名 | 收 |
+| 2026-11-01 | BV1yy411c7mE | 标题 | UP 名 | 弃 |
 
 ## 抖音
-7400...  2026-11-01  弃
+
+| 日期 | id | 标题 | UP | 状态 |
+| ---- | -- | ---- | -- | ---- |
+| 2026-11-01 | 7400000000000000000 | 标题 | 作者 | 弃 |
 ```
 
-`caifeng_seen` 一次调用同时能查能记。跨信源 id 不会撞（BV 前缀 vs 纯数字），但仍分节，方便人肉查。
+- 状态只有 `收` / `弃`。同一天同一条再记一次是**替换**（弃可以升成收，不会出现两行）
+- `caifeng_seen` 一次调用同时能查能记：`check` 问「这几条见过没」、`mark` 往回记
+- **解析靠扫描定位 id，不认列位**——人手改过的表格（id 挪到第一格、多加一列）照样能读，读不出来就跳过不瞎猜
+- 超过 30 天的行自动滚进 `seen/<YYYY-MM>.md`，主表只留近期
+- 跨信源 id 不会撞（BV 前缀 vs 纯数字），但仍分节，方便人肉查
 
 ---
 
@@ -306,15 +368,30 @@ BV1yy  2026-11-01  弃
   "commentLength": "medium",   // short<=15 / medium<=40 / long<=100
   "mentionName": "蚍蜉zzzz",
   "replyToComments": true,     // 回复别人在你评论下的回复
+
+  // —— 私信：管"收到的怎么处理"，不管"往哪儿投" ——
   "dmEnabled": true,
   "dmMode": "read",            // read | draft | auto（默认 read，见 §16）
-  "dmUid": 0
+  "dmUid": 0,
+
+  // —— 运行环境（设置页自己写的，一般不用手改） ——
+  "pythonPath": ""             // 空 = 还没装；点过"装 Python 环境"就自动填上
 }
 ```
 
 抖音侧没有独立配置块——只借 `sources.douyin`、`dyDailyMinutes`、`keywords`。旧 douyin 插件的 7 类设置（人格、视频时间、自检、好友互动、公开评论、音频密钥、日报）合并成上面这几行，其余全部砍掉。
 
-**模型的候选列表从哪来**：实现时确认——优先读 DSH 已配置的 provider/model 注册面；读不到就退化成手填 `provider` + `model` 两个文本框。不做硬编码列表。
+**`dmMode` 管的是「收到的私信怎么处理」**，不是「把日报投到谁的私信里」：
+
+| 值 | 行为 |
+|---|---|
+| `read`（默认） | 只读，收到什么写进日报的「私信」节，一个字都不回 |
+| `draft` | 读，并把想回的话写进日报当草稿，但**绝不调用 reply** |
+| `auto` | 允许回。设置页会先单独确认一次；一条最多 4~5 句（超 500 字符接口回 code 21007）；转账、点链接、加好友一律不执行 |
+
+`dmEnabled=false` 连读都不读。**采风从不往任何人私信里发日报**——唯一产出是 `<家目录>/out/<日期>.md`。
+
+**模型的候选列表从哪来**：优先读 DSH 已配置的 provider/model 注册面（`ctx.llm.listProviders()` / `listModels()`）；读不到就退化成手填 `provider` + `model` 两个文本框。不做硬编码列表。
 
 ---
 
@@ -366,15 +443,49 @@ BV1yy  2026-11-01  弃
 最近 7 天  ·  2026-10-31  ·  2026-10-30 …
 ```
 
+`main` 是 **keyed** 槽：`register({ name:'main', key:'caifeng' }, …)`。它自己不会出现在侧栏——**必须同时注册 `sidebar.panellist`（`{ id:'caifeng', order:100, label:'采风' }`）**，侧栏那个图标才是进主区页的唯一入口。两者 id/key 都是 `caifeng`，配对关系，缺一个就进不去。
+
+设置页走 `settings.section`（`{ id:'caifeng', order:60, label:'采风' }`）。三处注册各自 try/catch，缺一个另外两个照起。
+
+数据面：客户端只读 `/api/caifeng/*` 这几张口子 —— `status` `config`(GET/POST) `run` `report` `days` `models` `python`(GET/POST) `login/start` `login/poll` `whoami` `diagnose` `review` `import` `move-home`。抖音桥走 `/api/caifeng/dy/<action>`，那条不走同源判断，走 `x-caifeng-token`。
+
 ---
 
 ## 11. 安全边界
 
-照搬 bili 的做法，只改 id：`profile-template/caifeng-duty/cordis.patch.yml` 建一个专用 profile，`bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless']`。
+照搬 bili 的做法，只改 id：`profile-template/caifeng-duty/cordis.patch.yml` 建一个专用 profile。
+
+```jsonc
+// profile-template/caifeng-duty/package.json
+// ⚠️ bundles 必须写在 dsh.profile 下面。写成顶层 "bundles" 会被静默忽略，
+//    这个 profile 一个 entry 都组不起来 —— 表现出来是「所有 MCP 都 pending
+//    (waiting for service: tools)」，而报错信息里只说某个 entry not found。
+{
+  "name": "dsh-profile-caifeng-duty",
+  "private": true,
+  "dependencies": {},
+  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-headless"] } }
+}
+```
 
 禁用：`tool-bash` `tool-pwsh` `tool-jobs` `jobs` `tool-ralph` `tool-fs` `tool-fs-search` `tool-web` `web-fetch-http` `web-search-deepseek` `tool-subagent*` `subagent*` `workflow-ptc` `ptc-runtime` `tool-workflow` `skill` `skill-filesystem` `skill-badge` `tool-skill` `agent-instructions` `tool-plugin-manager` `plugin-manager` `hmr` `goal*` `plan-mode` `tool-todo` `mcp-resources`
 
-补开：`credentials` `authorization` `deepseek-account` `agent-default-model`（config 由 §9 的 `model` 决定，空则用 `deepseek-account` + `deepseek-flash`）
+补开：`credentials` `authorization` `deepseek-account` `agent-default-model`（config 由 §9 的 `model` 决定）。
+
+**模型路由有一条硬限制**：受限 profile 里能免密钥跑通的只有 `deepseek-account`；`deepseek-official` 要 `DEEPSEEK_API_KEY`，其他 provider 要 providers 配置，这里都没有。所以设置页没填模型时，overlay 不会照抄桌面默认，而是**回退到 `deepseek-account` + `deepseek-flash`** 并在日志里说清原因。要固定别的模型，在设置页填。
+
+### duty 那一轮的工具面从哪来
+
+宿主 `ctx.tools.register` 注册的工具**对子进程不可见**。那一轮的 13 个工具全部来自 overlay 里插的两条 MCP：
+
+| overlay 条目 | 是什么 | 谁起 | 什么时候不起 |
+|---|---|---|---|
+| `mcp-caifeng-bili` | `@deepseek-ai/dsh-mcp-client` + Python stdio 服务 | `<家>/.venv/Scripts/python.exe <家>/mcp_server.py` | 没装 Python 环境、或 `mcp_server.py` 没铺到家里 |
+| `mcp-caifeng-dy` | `@deepseek-ai/dsh-mcp-client` + Node 薄桥 | `node dy/mcp-bridge.mjs` | 抖音桥文件不在包里 |
+
+两条各自独立：一条挂了另一条照跑，那一轮降级成单信源并在日报里写明。两条都没插上时 `run()` 直接回 `no_source`（带上是哪条为什么没起来），不白跑一轮。
+
+overlay 每次运行重写，还负责三件它必须做的事：补开 `credentials`/`authorization`/`deepseek-account`（headless bundle 自带 patch 把它们关了）、按当前模型写 `agent-default-model`、所有路径按 YAML 单引号转义并在 Windows 上把 `\` 换成 `/`。
 
 值班会话的工具面 = §6 的 13 个 `caifeng_*`。它能读网、能写日报，不能碰文件系统、不能起子代理、不能装东西。
 
@@ -405,6 +516,40 @@ BV1yy  2026-11-01  弃
 
 **抖音必须有真浏览器**：抖音不接受 headless，且登录态要持久。方案是专用 Edge 实例（独立 `user-data-dir` 在 `dy/profile/`），首次由用户在设置页点一次"打开并登录"，扫码后 profile 留着；之后值班时按需连接，跑完**不关浏览器**（关了就丢登录态，反复扫码会毁掉体验）。
 
+### 这张图是分两半的
+
+抖音的浏览器活在**宿主进程**里，不在 duty 那一轮里：
+
+```
+宿主进程                               duty 子进程（受限 profile）
+─────────────────────────              ────────────────────────────
+BrowserController                      mcp-caifeng-dy（Node 薄桥）
+  专用 Edge（dy/profile）                  │  只有 4 个 caifeng_dy_* 工具
+  readPageState / switchVideo / capture    │  白名单由 CAIFENG_TOOLS 决定
+        ▲                                  │
+        │  POST /api/caifeng/dy/<action>   │
+        └──────────────────────────────────┘
+           带 x-caifeng-token（令牌在
+           <家>/dy/control/host.json）
+```
+
+这样分的原因很实在：受限 profile 里没有 `bash`、没有 `fs`，起不了浏览器；而且一个进程里只能有一台专用 Edge（`user-data-dir` 会被锁）。
+
+**跨进程那条线不靠文件锁**，靠令牌 + 宿主自己数的额度：
+
+- 宿主每次起来 `publish()` 一次，把 `{ baseUrl, token }` 原子写进 `<家>/dy/control/host.json`；重新 publish 会换令牌，旧的立刻作废
+- 桥只认这个文件；读不到就回 `{ ok:false, reason:'no-host-record' }`，不猜地址
+- **每日分钟数由宿主数**：`open` / `next` / `frames` 三个"往回看"的动作进出时计时，累计到 `dyDailyMinutes` 就回 `{ ok:false, reason:'daily-limit' }`；`state` 只读一次状态，不计时也不受额度拦
+
+`dyDailyMinutes` 因此是**真闸门**，不是章程里的一句嘱咐——模型想多刷也刷不动。
+
+### 移植时踩过的四个坑（都已修，别再踩回去）
+
+1. **裸 `https://www.douyin.com/` 会被甩到 `/jingxuan`**，那页没有能上下滑的作品流。得用 `?recommend=1&from_nav=1`，且落在 `/jingxuan` 时点一下导航里文本为「推荐」的 tab。
+2. **`page.evaluate` 不收源码字符串**。`String.raw` 写出来的函数传进去会被当表达式求值，返回 `undefined`，参数全丢。要先 `new Function` 编译成真函数再传。
+3. **`readyState=complete` 不代表有作品**。推荐流先挂直播卡（`live-preview`）再换成作品，中间有约一秒空窗。`navigate()` 之后要等到 `pageKind` 认得出是 `video` 或 `search` 才交回去（最多等 12 秒），否则 duty 那一轮读到 `unknown` 就按规矩跳过，整趟白跑。
+4. **找不到 `playwright-core` 不要报「没装」就完事**。桌面版把它装在 profile 的 `node_modules` 里，插件自己的 `node_modules` 里没有。要按顺序找：环境变量 → 插件自己 → `$DSH_HOME/profiles/*/node_modules` → npm 全局，全都用 `pathToFileURL` 动态 import。
+
 ---
 
 ## 13. 实施
@@ -413,7 +558,7 @@ BV1yy  2026-11-01  弃
 
 ### 第一步：骨架 + B站
 
-交付：包骨架、命名清单、`lib/`、`bili/`、设置页两页签 + 主区页、`prompts/duty.md`、受限 profile 模板、B站 7 个工具 + 本地 2 个 + 运维 3 个。
+交付：包骨架、命名清单、`lib/`、`vendor/caifeng-bili-mcp/`、设置页两页签 + 主区页、`prompts/duty.md`、受限 profile 模板、B站 7 个工具 + 本地 2 个 + 运维 3 个。
 
 验收：
 
@@ -441,27 +586,30 @@ BV1yy  2026-11-01  弃
 
 ---
 
-## 14. 取件清单
+## 14. 取件清单（实现时照这张表取，别自己造）
 
 参考源码（已 clone，实现时可直接对照）：
 
 - bili v2.3.1 → `D:\dsh-workspaces\dev\local-plugins\2026-11-01-刷片插件合并\tmp\bili-src`
 - douyin v1.4.6 → `D:\dsh-workspaces\dev\local-plugins\2026-11-01-刷片插件合并\tmp\douyin-src`
 
-| 目标 | 来源 | 处理 |
+| 落点 | 来源 | 处理 |
 |---|---|---|
-| `lib/{state,login,verify,diagnose,uvfetch,hostdeps}.mjs` | bili `lib/` 同名 | 直接搬，改导入路径 |
-| `bili/mcp.mjs` + `vendor/bilibili-mcp/` | bili `lib/mcp.mjs` + `vendor/` | 直接搬 |
-| `bili/{search,subtitle,comments,frames,favorites,reply,dm}.mjs` | bili `index.js` 里对应工具的实现 | **拆出来**，不整体搬 |
+| `lib/{state,login,verify,diagnose,uvfetch,hostdeps}.mjs` | bili `lib/` 同名 | 直接搬，改导入路径与家目录常量 |
+| `lib/mcp.mjs` | bili `lib/mcp.mjs` | 直接搬（宿主侧调试与验证用，duty 轮不用它） |
+| `vendor/caifeng-bili-mcp/server.py` | bili `vendor/bilibili-mcp/mcp_server.py` | 剪掉转写、弹幕、排行等，只留 9 个工具；白名单 env 改名；家目录改 `CAIFENG_HOME` |
+| `vendor/caifeng-bili-mcp/requirements.txt` | bili 同名 | 去掉 whisper 系依赖；`mcp` 必须锁 `<2` |
+| `bili/*.mjs` 七个 | bili `index.js` 里对应工具的实现 | **不搬成 JS**——那 7 个走 Python MCP，宿主侧没有对应文件 |
 | `lib/paths.mjs` | 新写 | 借鉴 douyin `runtime-paths.mjs` 的解析顺序，加可配置根 |
-| `lib/{seen,report,charter,models}.mjs` | 新写 | 契约见 §5 §7 §8 §9 |
-| `prompts/duty.md` | bili `prompts/duty.md` | **重写**：合并抖音信源、人格内联、工具名换成 `caifeng_*` |
-| `profile-template/caifeng-duty/*` | bili `profile-template/bili-duty/*` | 改 id 与白名单 |
+| `lib/{seen,report,charter,config,clock,duty,service,dy-host,migrate,models}.mjs` | 新写 | 契约见 §5 §7 §8 §9 §11 |
+| `prompts/duty.md` | bili `prompts/duty.md` | **重写**：合并抖音信源、人格内联、工具名换成 `caifeng_*`、私信节改语义 |
+| `profile-template/caifeng-duty/*` | bili `profile-template/bili-duty/*` | 改 id 与白名单；**`package.json` 的 bundles 挪进 `dsh.profile`** |
 | `dy/core.mjs` | douyin `core.mjs` | 按 §12 删 |
-| `dy/{browser-launcher,browser-host,browser-pages,browser-pause,video-storyboard}.mjs` | douyin 同名 | 直接搬 |
-| `dy/tools.mjs` | douyin `tool-definitions.mjs` | 只留 4 个工具的定义 |
+| `dy/browser-host.mjs` | douyin `browser-host.mjs` + `browser-launcher.mjs` + `runtime-paths.mjs` 三合一 | 加 playwright 多根解析、端口文件 |
+| `dy/tools.mjs` | douyin `tool-definitions.mjs` | 只留 4 个动作；失败一律结构化，不抛 |
+| `dy/mcp-bridge.mjs` | 新写 | 手写极简 MCP stdio 服务（不装 SDK），把工具调用转回宿主 |
 | `client.js` | 新写 | 只借 bili 的 CSS 结构思路，不复用样式 |
-| `lib/asr.py` `lib/favops.py` | bili `lib/` | **不搬**（无转写）；`favops.py` 的收藏夹逻辑改写成 `bili/favorites.mjs` |
+| `lib/asr.py` `lib/favops.py` | bili `lib/` | **不搬**（无转写）；收藏夹逻辑并进 `server.py` 的 `caifeng_bili_favorites` |
 
 ---
 
@@ -490,8 +638,67 @@ BV1yy  2026-11-01  弃
 
 ---
 
-## 16. 待确认
+## 16. 待确认（都已定）
 
-- **`dmMode` 默认值**：定为 `read`（只看不发，最安全）。想要别的档说一声。
-- **`icon.svg`**：建议一枚单色简化的风向标或罗盘，实现时画。
-- **`locale/en.json`**：`群策` 有，可以照做；不做也能跑。
+- **`dmMode` 默认值**：定为 `read`（只看不发，最安全）。
+- **`icon.svg`**：一枚单色罗盘，已画好（`icon.svg`，96×96，深底 + 双圈 + 红灰双指针）。
+- **`locale/en.json`**：不做。只出 `locale/zh-CN.json`。
+- **`windows` / `noon` / `night` / `peakValley`**：保留了字段和时窗判定（`lib/clock.mjs`）供自动轮用；默认 `["00:00-24:00"]` 等于全天放行，不强按谷时。
+
+---
+
+## 17. 真机上踩过的坑（照这个顺序排错）
+
+按「症状 → 真因 → 怎么修」写，都是本机实际撞过的，不是设想。
+
+| 症状 | 真因 | 修法 |
+|---|---|---|
+| 插件整个不激活，`invalid config: $.sources.bili volatile fields require a fixed object path without an enclosing volatile field` | 嵌套对象外层也标了 `.extra('volatile')` | 只标内层字段，`sources` / `model` 外层不标 |
+| `command "caifeng" input hint must not be empty`，插件不激活 | 命令传了 `input:{hint:''}` | 命令不吃参数就别传 `input` |
+| `cannot set property "tianshuCaifeng" without provide` | cordis 的 `set` 只能改已 provide 的服务 | 用 `ctx.provide(...)` |
+| 配置读出来是 `"[object Object]"` | volatile 字段被宿主包成 `{get(){},[write]}` 引用对象 | `lib/config.mjs` 的 `unwrap()` 逐层脱壳，clamp 入口整体先脱 |
+| `notesEnabled` / `favoritesEnabled` / `dmEnabled` 明明是 true 却按 false 走 | `key in src` 判空会被 cordis 显式补的 `undefined` 骗过 | 改判 `!== undefined` |
+| 那一轮 exit 1，`命令行语法不正确` | 走 `dsh.cmd` 要 `shell:true`，多行中文章程被 cmd.exe 毁掉 | 优先解析 `@deepseek-ai/dsh/lib/bin.js` 用 node 跑；`.cmd` 只作最后兜底 |
+| `unsupported Electron runtime fingerprint: Node 24.x ... -electron.0` | 桌面版 `process.execPath` 是 Electron，不是 node | `resolveNode()`：环境变量 → 非 Electron 时用自身 → 扫 PATH 找真 `node.exe` |
+| `MISSING_CREDENTIAL: no API key for provider route "deepseek-official"` | 受限 profile 里只有 `deepseek-account` 能免密钥跑 | 没显式指定模型时回退到 `deepseek-account/deepseek-flash` 并记日志 |
+| 三个 MCP 全 `pending (waiting for service: tools)`，profile patch 里几十条 `entry "X" not found` | 受限 profile 的 `bundles` 写在了 `package.json` 顶层 | 挪进 `"dsh": { "profile": { "bundles": [...] } }` |
+| `search_by_type() got an unexpected keyword argument 'credential'` | `bilibili-api-python` 各版本签名不一致 | 用 `inspect.signature` 探测，认什么传什么 |
+| 抖音 `pageKind:'unknown'`，页面里只有导航壳 | 裸域名被甩到 `/jingxuan`，那页没有作品流 | 用 `?recommend=1&from_nav=1`，并点「推荐」tab |
+| 换片时 `Cannot read properties of undefined (reading 'blocked')` | `page.evaluate` 传源码字符串被当表达式求值 | `new Function` 编译成真函数再传 |
+| 抖音打开后立刻读状态是 `unknown`，那一轮直接跳过 | 客户端渲染，`readyState=complete` 时推荐流还没作品 | `navigate()` 后 `settleState()` 等到 `pageKind` 认得出为止 |
+| `loadPlaywright()` 回 `no-playwright` | 桌面版把 `playwright-core` 装在 profile 的 `node_modules` 里 | 多根解析 + `pathToFileURL` 动态 import |
+| 日报里「总结」出现两段互相矛盾的话 | 同一天第二轮把总结追加在上一轮后面 | 给了 `note` 就整段替换，不拼接 |
+| 同一条既在「挑的」又在「扫过没收的」 | 模型把已收的 id 又塞进 skipped | 渲染前把 `picks` 里的 id 从 skips 里剔掉 |
+
+---
+
+## 18. 怎么验（手工）
+
+```powershell
+# 1. 装进一个独立 profile（别动 desktop）
+cd $env:USERPROFILE\.dsh\profiles\caifeng-smoke   # 或自建：dependencies 里 link 到本仓
+dsh plugin --profile caifeng-smoke install
+
+# 2. 起服务，拿 token
+cmd /c set CAIFENG_DEBUG=1&& dsh --profile caifeng-smoke --no-open > tmp\smoke.log 2>&1
+# 从日志里找：dsh web: http://127.0.0.1:3080/?token=XXXX
+
+# 3. 先用 token 换 cookie（裸打 API 会 401「不允许的来路」）
+#    之后带这个 cookie 打 /api/caifeng/*
+
+# 4. 装 Python 环境（约 27 秒）
+POST /api/caifeng/python
+
+# 5. 跑一轮
+POST /api/caifeng/run
+```
+
+单测与语法检查：
+
+```powershell
+npm test          # 98 条
+npm run check:syntax
+```
+
+四条测试缝的边界要说清：真实 B站 网络、真 Edge、真 dsh 子进程**都不在测试里**——那三样交上表的手工验收。测试里用的是假 ctx、假 controller、假 DOM 桩，以及带白名单 env 真起的两条 MCP 进程（那条是真的，因为它验的就是「名单外的工具连名字都不出现」）。
+
