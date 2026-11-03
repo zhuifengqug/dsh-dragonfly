@@ -66,5 +66,8 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.0"
   }
 }
