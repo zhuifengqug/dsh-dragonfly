@@ -14,7 +14,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 /** 端口扫描区间（避开旧插件的固定 9227 只会「优先尝试」，不是独占） */
 export const PORT_MIN = 9227
@@ -183,7 +183,9 @@ export function candidatePlaywrightRoots() {
   const env = process.env.CAIFENG_PLAYWRIGHT || process.env.PLAYWRIGHT_CORE_PATH
   if (env) push(env)
   // 插件自己
-  push(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'node_modules', 'playwright-core'))
+  // 用 fileURLToPath 而不是 URL.pathname：后者会把中文目录百分号编码，
+  // 装在本机这种带中文的路径下就永远找不到自己的 node_modules。
+  push(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'node_modules', 'playwright-core'))
   // 每个 profile
   const home = process.env.DSH_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '', '.dsh')
   try {
