@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { effectiveModel, ensureOverlay } from '../../lib/duty.mjs'
+import { dutyCwd, effectiveModel, ensureOverlay } from '../../lib/duty.mjs'
 
 function makeLayout(home) {
   return {
@@ -211,4 +211,29 @@ test('effectiveModel：什么都取不到时也给一个能跑的，不是空', 
   assert.equal(m.provider, 'deepseek-account')
   assert.equal(m.model, 'deepseek-flash')
   assert.equal(m.fellBack, true)
+})
+
+/**
+ * dutyCwd：那一轮的 cwd
+ * ---------------------------------------------------------------------------
+ * 会话的工作区就是 cwd。默认是数据目录 —— 那个路径没在应用里注册成工作区，
+ * 所以会话列表里看它「没有工作区」。填了工作区就该用工作区。
+ */
+test('dutyCwd：没填就用数据目录', () => {
+  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'caifeng-cwd-')))
+  assert.equal(dutyCwd({}, layout), layout.home)
+  assert.equal(dutyCwd({ workspaceDir: '   ' }, layout), layout.home)
+})
+
+test('dutyCwd：填了绝对路径就用它，目录不存在会先建出来', () => {
+  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'caifeng-cwd-')))
+  const wanted = join(layout.home, '值班室')
+  assert.equal(existsSync(wanted), false)
+  assert.equal(dutyCwd({ workspaceDir: wanted }, layout), wanted)
+  assert.equal(existsSync(wanted), true, 'spawn 一个不存在的 cwd 会 ENOENT，必须先建')
+})
+
+test('dutyCwd：相对路径不认（会跟着宿主进程的 cwd 漂，等于没填）', () => {
+  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'caifeng-cwd-')))
+  assert.equal(dutyCwd({ workspaceDir: 'some/relative/dir' }, layout), layout.home)
 })

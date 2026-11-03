@@ -87,6 +87,7 @@ export const Config = !z ? undefined : z.object({
   dmMode: describe(z.string()),
   dmUid: describe(z.number()),
   pythonPath: describe(z.string()),
+  workspaceDir: describe(z.string()),
   showSidebar: describe(z.boolean()),
   showConversation: describe(z.boolean()),
 })
@@ -396,6 +397,12 @@ export function apply(ctx, config = {}) {
         if (path === '/import' && isPost) {
           const r = service.importOld()
           return json(res, 200, r)
+        }
+
+        // 历史补搬：判重表按行合并、笔记复制、旧日报与月度归档落 archive/（幂等，不删旧目录）
+        if (path === '/import-history' && isPost) {
+          const r = service.importHistory()
+          return json(res, r.ok ? 200 : 500, r)
         }
 
         if (path === '/move-home' && isPost) {

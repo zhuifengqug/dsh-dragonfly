@@ -215,6 +215,15 @@ test('diffKeys 只报真变了的键', () => {
   assert.deepEqual(diffKeys(a, b), ['perDay'])
 })
 
+test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建）', () => {
+  assert.equal(clampConfig({}).workspaceDir, '', '默认空 = 用数据目录')
+  assert.equal(clampConfig({ workspaceDir: '  D:\\dsh-workspaces\\采风值班  ' }).workspaceDir, 'D:\\dsh-workspaces\\采风值班')
+  assert.equal(clampConfig({ workspaceDir: null }).workspaceDir, '')
+  assert.equal(clampConfig({ workspaceDir: 7 }).workspaceDir, '7')
+  const long = 'x'.repeat(900)
+  assert.equal(clampConfig({ workspaceDir: long }).workspaceDir.length, 500, '要有长度上限，别把配置撑爆')
+})
+
 test('pickKnownKeys 丢掉不认识的键', () => {
   assert.deepEqual(pickKnownKeys({ perDay: 3, 乱写: 1 }), { perDay: 3 })
 })

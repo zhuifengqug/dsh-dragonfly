@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, test } from 'node:test'
 
-import { countReports, importFromBili, moveHome } from '../../lib/migrate.mjs'
+import { countReports, importFromBili, importHistory, moveHome } from '../../lib/migrate.mjs'
 import { layoutOf } from '../../lib/paths.mjs'
 import { parseSeen } from '../../lib/seen.mjs'
 
@@ -203,4 +203,108 @@ test('搬到同一个位置：直接说没搬', () => {
   const r = moveHome(same, same)
   assert.equal(r.ok, false)
   assert.match(r.text, /一样/)
+})
+
+// ── 历史补搬（importHistory）────────────────────────────────────────────────
+// 跟 importFromBili 的分工：那个是"首次启动、目标空了才整份搬"，
+// 这个是"已经用起来了，把旧账按行补进来"。所以它必须**按行幂等**。
+
+/** 造一个"已经在用"的新家 + 一个更完整的旧家 */
+function makeBoth() {
+  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  mkdirSync(layout.reports, { recursive: true })
+  mkdirSync(layout.seenDir, { recursive: true })
+  writeFileSync(layout.seen, [
+    '# 见闻录', '',
+    '## B站', '',
+    '| 日期 | id | 标题 | UP | 状态 |',
+    '| ---- | -- | ---- | -- | ---- |',
+    '| 2026-11-02 | BV1xx411c7mD | 新的这条 | UP新 | 收 |',
+    '',
+    '## 抖音', '',
+    '| 日期 | id | 标题 | UP | 状态 |',
+    '| ---- | -- | ---- | -- | ---- |',
+    '| 2026-11-02 | 7400000000000000001 | 抖一条 | 抖UP | 收 |',
+    '',
+  ].join('\n'), 'utf8')
+
+  makeOld({ seen: OLD_SEEN })
+  // 旧日报 + 归档 + 笔记（makeOld 会给两份 2026-10-2x 的空日报）
+  mkdirSync(join(oldHome, 'reports'), { recursive: true })
+  mkdirSync(join(oldHome, 'digest'), { recursive: true })
+  writeFileSync(join(oldHome, 'reports', 'BV1tbxe6rEVn-2026-10-31.md'), '# 旧笔记\n', 'utf8')
+  writeFileSync(join(oldHome, 'reports', 'BV1aa411c7mE-2026-10-31.md'), '# 同名笔记（该被保留）\n', 'utf8')
+  writeFileSync(join(oldHome, 'digest', '2026-10.md'), '# 十月归档\n', 'utf8')
+  writeFileSync(join(layout.reports, 'BV1aa411c7mE-2026-10-31.md'), '# 我已经写过的\n', 'utf8')
+  return layout
+}
+
+test('历史补搬：判重表按行合并，已有的不动、缺的补齐', () => {
+  const layout = makeBoth()
+  const r = importHistory(layout)
+
+  assert.equal(r.ok, true)
+  const text = readFileSync(layout.seen, 'utf8')
+  // 自己那条还在（没被旧表顶掉）
+  assert.match(text, /新的这条/)
+  // 旧表里缺的两条补进来了
+  assert.match(text, /BV1tbxe6rEVn/)
+  assert.match(text, /BV1FTxi6vEoK/)
+  assert.ok(r.seenAdded >= 2)
+
+  const rows = parseSeen(text).rows
+  assert.ok(rows.every((x) => x.day), '补进来的行必须带得出日期，否则等于没搬')
+  assert.equal(rows.filter((x) => x.id === 'BV1tbxe6rEVn').length, 1, '同一条不该出现两行')
+  assert.ok(rows.find((x) => x.id === 'BV1FTxi6vEoK').picked, '旧的「挑了」要算「收」')
+})
+
+test('历史补搬：笔记同名不覆盖，旧日报与归档落 archive/ 不进 out/', () => {
+  const layout = makeBoth()
+  const r = importHistory(layout)
+
+  assert.equal(r.reports, 1, '只有那份新的才该复制')
+  assert.equal(r.reportsSkipped, 1, '同名的那份要跳过')
+  assert.equal(readFileSync(join(layout.reports, 'BV1aa411c7mE-2026-10-31.md'), 'utf8'), '# 我已经写过的\n')
+  assert.equal(existsSync(join(layout.reports, 'BV1tbxe6rEVn-2026-10-31.md')), true)
+
+  assert.equal(r.legacy, 2, '旧日报整份进 archive')
+  assert.equal(existsSync(join(layout.archive, 'legacy-out', '2026-10-20.md')), true)
+  assert.equal(existsSync(join(layout.out, '2026-10-20.md')), false, 'out/ 是"今天"页的地方，不能塞旧格式')
+  assert.equal(existsSync(join(layout.archive, 'digest', '2026-10.md')), true)
+})
+
+test('历史补搬：跑第二遍什么都不做（幂等）', () => {
+  const layout = makeBoth()
+  const first = importHistory(layout)
+  const seenAfterFirst = readFileSync(layout.seen, 'utf8')
+
+  const second = importHistory(layout)
+  assert.equal(second.seenAdded, 0, '第二次不该再往判重表里加行')
+  assert.equal(second.reports, 0)
+  assert.equal(second.legacy, 0)
+  assert.equal(second.digest, 0)
+  assert.equal(readFileSync(layout.seen, 'utf8'), seenAfterFirst, '第二遍不该改一个字节')
+  assert.ok(first.seenAdded > 0)
+})
+
+test('历史补搬：旧目录不存在时安静跳过', () => {
+  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  mkdirSync(layout.home, { recursive: true })
+  const r = importHistory(layout)
+  assert.equal(r.ok, true)
+  assert.equal(r.state, 'no-source')
+  assert.equal(existsSync(layout.seen), false, '没有旧数据就别凭空造判重表')
+})
+
+test('历史补搬：一个字节都不写旧目录', () => {
+  const layout = makeBoth()
+  const before = {
+    files: readdirSync(oldHome).sort(),
+    seen: readFileSync(join(oldHome, 'seen.md'), 'utf8'),
+    reports: readdirSync(join(oldHome, 'reports')).sort(),
+  }
+  importHistory(layout)
+  assert.deepEqual(readdirSync(oldHome).sort(), before.files)
+  assert.equal(readFileSync(join(oldHome, 'seen.md'), 'utf8'), before.seen)
+  assert.deepEqual(readdirSync(join(oldHome, 'reports')).sort(), before.reports)
 })

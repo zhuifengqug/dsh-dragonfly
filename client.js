@@ -608,6 +608,16 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
               })),
             h(Note, null, '留空就是默认位置。填绝对路径会搬过去（只搬配置、判重、登录凭证，旧日报留在原地）。'),
 
+            // 值班轮的工作区（会话的 cwd 就是它的工作区）
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.workspaceDir || '值班轮的工作区'),
+              h('input', {
+                'data-cf-input': '', placeholder: '留空=数据目录', style: { width: '280px' },
+                value: val('workspaceDir') || '',
+                onChange: (e) => set('workspaceDir', e.target.value),
+              })),
+            h(Note, null, '每天那一轮在哪个目录里跑 —— 会话列表按这个目录归到工作区。留空就用数据目录（那里不会显示成工作区）。'),
+
             // Python
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 那一头要个 Python 环境'),
