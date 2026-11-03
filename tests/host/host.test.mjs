@@ -252,7 +252,7 @@ test('诊断逐项：五样都列出来，缺的那样要带「点哪儿」', as
   process.env.DSH_HOME = join(home, 'dsh')
   try {
     const { service } = makeService(home)
-    const d = service.diagnose()
+    const d = await service.diagnose()
 
     assert.equal(d.ok, true)
     assert.ok(Array.isArray(d.checks))
@@ -288,7 +288,7 @@ test('诊断在依赖缺失时给的是人话，不是堆栈', async () => {
   const home = await mkdtemp(join(tmpdir(), 'caifeng-diag2-'))
   try {
     const { service } = makeService(home)
-    const d = service.diagnose()
+    const d = await service.diagnose()
     // 结论必须是一句话；不允许把 traceback 原样当结论
     assert.ok(d.verdict.length > 0)
     assert.doesNotMatch(d.verdict, /\n/)

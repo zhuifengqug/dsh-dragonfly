@@ -109,6 +109,48 @@ export async function pickPort({ file, min = PORT_MIN, max = PORT_MAX, probe = p
   return null
 }
 
+/**
+ * 这个端口上是不是已经有一个能用的 CDP 调试口。
+ *
+ * 为什么需要它：`probePort` 只回答「这个端口空着吗」。可我们**跑完不关浏览器**，
+ * 上一轮那台 Edge 会一直占着 9227。于是 probePort 说「9227 不空」⇒ 挑到 9228 ⇒
+ * 拿同一个资料目录再 launchPersistentContext ⇒ Edge 的单例把新进程转发给老进程后
+ * 立刻退出 ⇒ `launch-failed`，那一轮抖音就成了 unknown。
+ * 正确做法是**先找活着的接管**，实在没有才考虑新开。
+ */
+export async function probeCdp(port, timeoutMs = 600) {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    if (!response.ok) return false
+    const info = await response.json().catch(() => null)
+    return Boolean(info?.webSocketDebuggerUrl)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 找一个已经活着的调试端口：先看 port.json 记的那个，再按区间分批并发扫。
+ * 找到就返回端口号，找不到返回 null。
+ */
+export async function findLiveCdp({ file, min = PORT_MIN, max = PORT_MAX, probe = probeCdp } = {}) {
+  const recorded = file ? readPortRecord(file) : null
+  const candidates = []
+  if (recorded) candidates.push(recorded.port)
+  for (let port = min; port <= max; port++) if (!candidates.includes(port)) candidates.push(port)
+
+  const CHUNK = 16
+  for (let index = 0; index < candidates.length; index += CHUNK) {
+    const batch = candidates.slice(index, index + CHUNK)
+    const hits = await Promise.all(batch.map(async (port) => ((await probe(port)) ? port : null)))
+    const alive = hits.filter((port) => port !== null)
+    if (alive.length) return alive[0]
+  }
+  return null
+}
+
 /** 常见 Edge 安装位置（只用来把「没找到 Edge」说清楚，不参与启动） */
 export function findEdgeExecutable(env = process.env, exists = existsSync) {
   const roots = [env.LOCALAPPDATA, env.PROGRAMFILES, env['PROGRAMFILES(X86)']]
@@ -238,7 +280,7 @@ export function browserStatus() {
  * **绝不退化 headless**：找不到 Edge 就是找不到，报清楚让人去装。
  */
 export async function ensureBrowser({ home, log = () => {} } = {}) {
-  if (runtime?.context) return { ok: true, reused: true, ...runtime }
+  if (runtime?.port) return { ok: true, reused: true, ...runtime }
 
   const paths = controlPaths(home)
   ensureDir(paths.controlDir)
@@ -246,6 +288,16 @@ export async function ensureBrowser({ home, log = () => {} } = {}) {
 
   const playwright = await loadPlaywright()
   if (!playwright.ok) return playwright
+
+  // 先看看上一轮那台还活着没有 —— 跑完不关浏览器，它多半就在
+  const live = await findLiveCdp({ file: paths.portFile })
+  if (live) {
+    try { writePortRecord(paths.portFile, live) } catch { /* 记不下来也能用 */ }
+    runtime = { context: null, port: live, profileDir: paths.profileDir, launchedAt: Date.now(), adopted: true }
+    writeOwnerRecord(paths.ownerFile, { port: live, profileDir: paths.profileDir, ready: true, adopted: true })
+    log(`接管上一轮还开着的专用 Edge（端口 ${live}）`)
+    return { ok: true, reused: true, adopted: true, ...runtime }
+  }
 
   // 先确认 Edge 在不在：不先确认的话，playwright 抛出来的东西又一堆英文，说不清
   const edge = findEdgeExecutable()

@@ -194,7 +194,9 @@ export const READ_PAGE_STATE_SOURCE = String.raw`function readPageState() {
     && !loginRequired
     && !verificationRequired
     && feedCards.length === 1
-    && !document.querySelector('[data-e2e="im-dialog"]');
+    // ⚠️ im-dialog 在页面上**一直存在**（私信面板挂载着没打开），按"有没有这个节点"
+    //    判会让推荐流永远落不进 live-preview —— 必须判它**可见**。
+    && ![].slice.call(document.querySelectorAll('[data-e2e="im-dialog"]')).some(visible);
 
   var searchResults = [];
   if (location.pathname.indexOf('/search/') === 0) {
@@ -477,6 +479,8 @@ export class BrowserController {
       if (snapshot) {
         last = snapshot
         if (snapshot.pageKind === 'video' || snapshot.pageKind === 'search') return snapshot
+        // 直播卡不会自己变成作品（等 12 秒也是白等）—— 认了它，交给上层划走
+        if (snapshot.pageKind === 'live-preview' && Date.now() - started > 4000) return snapshot
       }
       await sleep(700)
     }

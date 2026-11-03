@@ -349,7 +349,7 @@ export function apply(ctx, config = {}) {
         }
 
         if (path === '/diagnose' && !isPost) {
-          return json(res, 200, service.diagnose())
+          return json(res, 200, await service.diagnose())
         }
 
         if (path === '/review' && isPost) {

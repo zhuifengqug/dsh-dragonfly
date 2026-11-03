@@ -53,11 +53,22 @@ export async function open({ query, controller } = {}) {
     const text = typeof query === 'string' ? query.trim() : ''
     const target = text ? searchUrl(text) : HOME_URL
     const navigated = await controller.navigate(target)
-    const state = await controller.state()
+    let state = await controller.state()
+    // 推荐流落到直播卡上是常态（那种卡没有作品 id，读不出标题时长）。
+    // 这里替它往下划一张，别让那一轮直接抱着「读不出东西」收工。
+    let skipped = null
+    if (!text && (state?.pageKind === 'live-preview' || state?.pageKind === 'unknown')) {
+      const moved = await controller.switchVideo(1).catch(() => null)
+      if (moved?.changed && moved.state) {
+        state = moved.state
+        skipped = 'live-preview'
+      }
+    }
     return {
       ok: true,
       query: text || null,
       url: navigated?.url ?? target,
+      skipped,
       state,
     }
   })
@@ -83,8 +94,8 @@ export async function state({ controller } = {}) {
 export async function next({ controller } = {}) {
   return guard(async () => {
     if (!isController(controller)) return noController()
-    const result = await controller.switchVideo(1)
-    const after = result?.state ?? (await controller.state())
+    let result = await controller.switchVideo(1)
+    let after = result?.state ?? (await controller.state())
     if (!result?.changed) {
       return failure(
         result?.reasonCode || 'switch-not-confirmed',
@@ -92,7 +103,16 @@ export async function next({ controller } = {}) {
         { state: after, before: result?.before ?? null },
       )
     }
-    return { ok: true, state: after, before: result?.before ?? null, via: result?.via ?? null }
+    // 换到直播卡上了：那种卡没有作品 id，留着等于这一手白给 —— 再划一张
+    let hopped = 0
+    while (after?.pageKind === 'live-preview' && hopped < 2) {
+      const again = await controller.switchVideo(1)
+      hopped += 1
+      if (!again?.changed) break
+      result = again
+      after = again.state ?? (await controller.state())
+    }
+    return { ok: true, state: after, before: result?.before ?? null, via: result?.via ?? null, hopped }
   })
 }
 

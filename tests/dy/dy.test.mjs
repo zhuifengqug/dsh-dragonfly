@@ -8,13 +8,15 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import { open, state, next, frames, DY_ACTIONS, DY_TOOL_NAMES } from '../../dy/tools.mjs'
 import { normalizeSeconds } from '../../dy/core.mjs'
+import { findLiveCdp, readPortRecord, writePortRecord, probeCdp } from '../../dy/browser-host.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PLUGIN_ROOT = join(HERE, '..', '..')
@@ -143,6 +145,41 @@ test('next 成功路径换到下一条', async () => {
   assert.equal(result.state.video.id, '7499999999999999999')
 })
 
+test('open 落到直播卡上会自己划走一张，别抱着一张读不出 id 的卡收工', async () => {
+  const live = sampleState({ pageKind: 'live-preview', video: { ...sampleState().video, id: null, duration: null } })
+  const controller = fakeController({ async state() { return live } })
+  const result = await open({ controller })
+  assert.equal(result.ok, true)
+  assert.equal(result.skipped, 'live-preview')
+  assert.deepEqual(controller.calls.switchVideo, [1])
+  assert.equal(result.state.pageKind, 'video')
+})
+
+test('open 带 query（搜索页）时不因为 live-preview 去划走', async () => {
+  const live = sampleState({ pageKind: 'live-preview', video: { ...sampleState().video, id: null } })
+  const controller = fakeController({ async state() { return live } })
+  const result = await open({ query: '秋招', controller })
+  assert.equal(result.skipped, null)
+  assert.deepEqual(controller.calls.switchVideo, [])
+})
+
+test('next 换到直播卡上会再划，最多两跳', async () => {
+  let round = 0
+  const live = sampleState({ pageKind: 'live-preview', video: { ...sampleState().video, id: null } })
+  const controller = fakeController({
+    async switchVideo(direction) {
+      controller.calls.switchVideo.push(direction)
+      round += 1
+      return { changed: true, via: 'arrow', before: null, state: round < 3 ? live : sampleState() }
+    },
+  })
+  const result = await next({ controller })
+  assert.equal(result.ok, true)
+  assert.equal(result.hopped, 2, '两跳之后停手，不无限划')
+  assert.equal(controller.calls.switchVideo.length, 3)
+  assert.equal(result.state.pageKind, 'video')
+})
+
 test('frames 成功路径带回图片数组', async () => {
   const controller = fakeController()
   const result = await frames({ controller })
@@ -183,10 +220,61 @@ test('frames 的 seconds 被夹到 1..10', async () => {
 test('normalizeSeconds 取整并夹在 1..10', () => {
   assert.equal(normalizeSeconds(0), 1)
   assert.equal(normalizeSeconds(11), 10)
+  assert.equal(normalizeSeconds(10.4), 10)
   assert.equal(normalizeSeconds(4.6), 5)
   assert.equal(normalizeSeconds(null), 3)
   assert.equal(normalizeSeconds(undefined), 3)
   assert.equal(normalizeSeconds('7'), 7)
+})
+
+// ---------------------------------------------------------------------------
+// 接管上一轮还开着的浏览器：端口记录的优先级
+// ---------------------------------------------------------------------------
+test('findLiveCdp 先认 port.json 记的那个端口', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'caifeng-port-'))
+  const file = join(dir, 'port.json')
+  try {
+    writePortRecord(file, 9300)
+    assert.equal(readPortRecord(file).port, 9300)
+    const seen = []
+    const port = await findLiveCdp({
+      file,
+      min: 9290,
+      max: 9295,
+      probe: async (p) => { seen.push(p); return p === 9300 },
+    })
+    assert.equal(port, 9300)
+    assert.equal(seen[0], 9300, '记录的那个要第一个试')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('findLiveCdp 记录的端口死了就往下扫，找到活的那个', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'caifeng-port-'))
+  const file = join(dir, 'port.json')
+  try {
+    writePortRecord(file, 9290)
+    const port = await findLiveCdp({ file, min: 9290, max: 9296, probe: async (p) => p === 9294 })
+    assert.equal(port, 9294)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('findLiveCdp 一个活的都没有时返回 null，不抛', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'caifeng-port-'))
+  const file = join(dir, 'port.json')
+  try {
+    writePortRecord(file, 9290)
+    assert.equal(await findLiveCdp({ file, min: 9290, max: 9293, probe: async () => false }), null)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('probeCdp 对没人听的端口返回 false 而不是抛', async () => {
+  assert.equal(await probeCdp(1, 300), false)
 })
 
 // ---------------------------------------------------------------------------

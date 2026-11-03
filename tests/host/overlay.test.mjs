@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { ensureOverlay } from '../../lib/duty.mjs'
+import { effectiveModel, ensureOverlay } from '../../lib/duty.mjs'
 
 function makeLayout(home) {
   return {
@@ -180,4 +180,35 @@ test('路径里的反斜杠与单引号都被安全转义（YAML 单引号字面
     assert.match(text, /command: 'D:\/we''ird\/py\.exe'/, '单引号要写成两个')
     assert.doesNotMatch(text, /command: 'D:\/we'ird/, '未转义的单引号会把 YAML 撑破')
   } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+/**
+ * effectiveModel：overlay 与设置页诊断共用同一个判定
+ * ---------------------------------------------------------------------------
+ * 这两处如果各算各的，就会出现"诊断说没事、那一轮却 MISSING_CREDENTIAL"。
+ */
+test('effectiveModel：桌面默认是 deepseek-official 时回落，并把「原本想要什么」留着', () => {
+  const ctx = { get: () => ({ currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'high' }) }) }
+  const m = effectiveModel(ctx, { model: { provider: '', model: '' } })
+  assert.equal(m.provider, 'deepseek-account')
+  assert.equal(m.model, 'deepseek-flash')
+  assert.equal(m.fellBack, true)
+  assert.deepEqual(m.wanted, { provider: 'deepseek-official', model: 'deepseek-flash' })
+  assert.equal(m.reasoning, '', '换过路由就把 reasoningEffort 丢掉，别把别家的档位塞过来')
+})
+
+test('effectiveModel：显式填的模型照用，不回退', () => {
+  const ctx = { get: () => ({ currentSelection: () => ({ provider: 'deepseek-account', model: 'deepseek-v4-pro', reasoningEffort: 'high' }) }) }
+  const m = effectiveModel(ctx, { model: { provider: 'deepseek-account', model: 'deepseek-v4-pro' } })
+  assert.equal(m.provider, 'deepseek-account')
+  assert.equal(m.model, 'deepseek-v4-pro')
+  assert.equal(m.reasoning, 'high')
+  assert.equal(m.fellBack, false)
+})
+
+test('effectiveModel：什么都取不到时也给一个能跑的，不是空', () => {
+  const m = effectiveModel({ get: () => undefined }, {})
+  assert.equal(m.provider, 'deepseek-account')
+  assert.equal(m.model, 'deepseek-flash')
+  assert.equal(m.fellBack, true)
 })
