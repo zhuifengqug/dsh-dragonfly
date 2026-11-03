@@ -669,6 +669,8 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 换片时 `Cannot read properties of undefined (reading 'blocked')` | `page.evaluate` 传源码字符串被当表达式求值 | `new Function` 编译成真函数再传 |
 | 抖音打开后立刻读状态是 `unknown`，那一轮直接跳过 | 客户端渲染，`readyState=complete` 时推荐流还没作品 | `navigate()` 后 `settleState()` 等到 `pageKind` 认得出为止 |
 | 抖音整轮 `dy-unknown`，日志里 `launch-failed` + `connect ECONNREFUSED 127.0.0.1:9228` | 跑完不关浏览器，上一轮那台 Edge 还占着 9227，而 `port.json` 记的是 9228；同一个资料目录再 launch 被单例转走后立刻退出 | `ensureBrowser` 先 `findLiveCdp()` 接管活着的调试口，没有才新开；`port.json` 只当"先试这个"的线索 |
+| 搜索页里一个 `/video/` 链接都没有 | 默认停在「综合」tab，视频卡是懒加载的 | 先点一下「视频」tab，再轮询等卡片出现（最多 10 秒） |
+| 点了搜索结果没反应，页面还停在搜索页 | 抖音的卡片只认真事件，`a.click()` 被拦掉 | 取卡片中心的坐标，用 `page.mouse.click(x, y)` 真点 |
 | 抖音一直停在直播卡上，`pageKind` 迟迟不变成 `video` | 推荐流里那张直播卡没有作品 id，等多久都不会变成作品 | `settleState` 认出 `live-preview` 就 4 秒收手；`open()` 自己划走一张并回报 `skipped`，`next()` 换到直播卡再接着划（最多两跳） |
 | 推荐流里明明只有一张直播卡，却读成 `unknown` 而不是 `live-preview` | `im-dialog`（私信面板）一直挂在 DOM 上，按"节点存在"判会永远判成私信态 | 判它**可见**：`querySelectorAll(...).some(visible)` |
 | `loadPlaywright()` 回 `no-playwright` | 桌面版把 `playwright-core` 装在 profile 的 `node_modules` 里 | 多根解析 + `pathToFileURL` 动态 import |

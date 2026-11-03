@@ -549,7 +549,7 @@ window.__ModuleLoader__.load({
         finally { setBusy(false) }
       }
 
-      return h('div', { 'data-cf-page': '', 'data-cf-wide': '' },
+      return h('div', { 'data-cf-page': '', 'data-cf-wide': tab === 'today' ? '' : undefined },
         h(StyleTag, null),
         h(StatusBar, { status, onRun: run, busy }),
         msg ? h('div', { 'data-cf-note': '' }, msg) : null,
