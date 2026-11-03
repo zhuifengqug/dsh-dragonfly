@@ -244,3 +244,57 @@ test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
   }
 })
 
+test('诊断逐项：五样都列出来，缺的那样要带「点哪儿」', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'caifeng-diag-'))
+  const realDshHome = process.env.DSH_HOME
+  // 把 DSH_HOME 指到临时目录：否则"从旧插件导入"会把真机上 bili-duty 的配置与凭据搬进来，
+  // 这条用例就变成"看这台机器装没装过"，而不是"空机器上诊断说什么"
+  process.env.DSH_HOME = join(home, 'dsh')
+  try {
+    const { service } = makeService(home)
+    const d = service.diagnose()
+
+    assert.equal(d.ok, true)
+    assert.ok(Array.isArray(d.checks))
+    assert.deepEqual(d.checks.map((c) => c.key), ['python', 'bili', 'douyin', 'model', 'lastRun'])
+
+    for (const c of d.checks) {
+      assert.equal(typeof c.label, 'string')
+      assert.equal(typeof c.ok, 'boolean')
+      assert.equal(typeof c.line, 'string')
+      assert.ok(c.line.length > 0, `${c.key} 得说清现在是怎样`)
+    }
+
+    // 全新装的机器：Python / 登录 / 抖音 三样必然还没有，每样都得告诉人点哪儿
+    const byKey = Object.fromEntries(d.checks.map((c) => [c.key, c]))
+    for (const key of ['python', 'bili', 'douyin']) {
+      assert.equal(byKey[key].ok, false, `${key} 在空家目录里不该是 ok`)
+      assert.ok(byKey[key].hint.length > 0, `${key} 不对时必须给下一步，不能只说"不行"`)
+    }
+    assert.match(byKey.python.hint, /装 Python/)
+    assert.match(byKey.bili.hint, /登录/)
+    assert.match(byKey.douyin.hint, /现在就跑/)
+
+    // 还没跑过的时候也要有一句话，不能是空字符串
+    assert.match(byKey.lastRun.line, /还没跑过/)
+  } finally {
+    if (realDshHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = realDshHome
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('诊断在依赖缺失时给的是人话，不是堆栈', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'caifeng-diag2-'))
+  try {
+    const { service } = makeService(home)
+    const d = service.diagnose()
+    // 结论必须是一句话；不允许把 traceback 原样当结论
+    assert.ok(d.verdict.length > 0)
+    assert.doesNotMatch(d.verdict, /\n/)
+    assert.doesNotMatch(d.verdict, /Traceback|at .*\.js:\d+/)
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+

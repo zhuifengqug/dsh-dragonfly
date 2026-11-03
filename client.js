@@ -100,6 +100,10 @@ window.__ModuleLoader__.load({
 [data-cf-log]{margin:6px 0 0;padding:8px 10px;max-height:220px;overflow:auto;font-size:11px;line-height:16px;
   background:var(--dsw-alias-bg-secondary,#f2f4f6);border-radius:8px;white-space:pre-wrap;word-break:break-all;
   color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-checks]{margin:6px 0 0;padding:0;list-style:none;font-size:11px;line-height:18px;}
+[data-cf-checks] li{display:flex;gap:6px;flex-wrap:wrap;}
+[data-cf-checks] li[data-ok="0"]{color:var(--dsw-alias-state-error-primary,#c0392b);}
+[data-cf-checks] em{font-style:normal;color:var(--dsw-alias-label-secondary,#5b6068);}
 `
 
     const StyleTag = () => h('style', { 'data-cf-style': '' }, CSS)
@@ -482,6 +486,13 @@ window.__ModuleLoader__.load({
               h(Btn, { onClick: importOld, disabled: busy === 'import' }, '从旧插件导入')),
             diag ? h('div', { 'data-cf-note': '' },
               h('div', null, diag.verdict || (diag.ok ? '看着没问题。' : '有点问题。')),
+              Array.isArray(diag.checks) && diag.checks.length
+                ? h('ul', { 'data-cf-checks': '' },
+                  diag.checks.map((c) => h('li', { key: c.key, 'data-ok': c.ok ? '1' : '0' },
+                    h('span', null, `${c.ok ? '✓' : '×'} ${c.label}`),
+                    h('span', null, ` — ${c.line}`),
+                    c.ok ? null : h('em', null, ` ${c.hint}`))))
+                : null,
               diag.detail?.hint ? h('div', null, diag.detail.hint) : null,
               diag.logTail ? h('pre', { 'data-cf-log': '' }, diag.logTail) : null) : null,
           )),
