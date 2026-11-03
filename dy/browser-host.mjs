@@ -368,3 +368,32 @@ export async function closeBrowser() {
     return { ok: false, closed: false, hint: `关浏览器时出错：${error?.message || error}` }
   }
 }
+
+/**
+ * 把**真的那台**专用 Edge 关掉（不只是断 CDP）。
+ *
+ * 重置登录态时才用得上：profile 目录被跑着的浏览器占着时，Windows 不让改名。
+ * 接管来的（`adopted`）那台没有本地 context，只能连上去让对面自己关。
+ */
+export async function shutdownBrowser({ home, log = () => {} } = {}) {
+  const paths = controlPaths(home)
+  const port = runtime?.port || (await findLiveCdp({ file: paths.portFile }))
+  runtime = null
+  if (!port) return { ok: true, closed: false }
+  const pw = await loadPlaywright()
+  if (!pw.ok) return pw
+  try {
+    const browser = await pw.chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 15_000 })
+    await browser.close()
+    log(`关掉了专用 Edge（端口 ${port}）`)
+    return { ok: true, closed: true, port }
+  } catch (error) {
+    return {
+      ok: false,
+      closed: false,
+      port,
+      reason: 'close-failed',
+      hint: `连上了但没关掉：${error?.message || error}。手动关掉那个 Edge 窗口再试。`,
+    }
+  }
+}

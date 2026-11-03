@@ -635,3 +635,46 @@ test('identityOf 只认出画的作品，冲突或未就绪一律 null', async (
   assert.equal(identityOf(null), null)
 })
 
+
+test('open 落在搜索页会点进第一条，并回报 opened', async () => {
+  const calls = { navigate: [], opened: 0 }
+  const searchState = sampleState({ pageKind: 'search', video: null })
+  const controller = {
+    calls,
+    async navigate(url) { calls.navigate.push(url); return { ok: true, url } },
+    async state() { return searchState },
+    async openFirstResult() { calls.opened += 1; return { ok: true, state: sampleState() } },
+  }
+  const r = await open({ query: 'deepseek 插件', controller })
+  assert.equal(r.ok, true)
+  assert.equal(r.opened, 'first-result')
+  assert.equal(calls.opened, 1)
+  assert.equal(r.state.pageKind, 'video')
+})
+
+test('next 停在搜索页时去点第一条，不硬滑', async () => {
+  const calls = { switchVideo: 0, opened: 0 }
+  const controller = {
+    calls,
+    async state() { return sampleState({ pageKind: 'search', video: null }) },
+    async switchVideo() { calls.switchVideo += 1; return { changed: false } },
+    async openFirstResult() { calls.opened += 1; return { ok: true, state: sampleState() } },
+  }
+  const r = await next({ controller })
+  assert.equal(r.ok, true)
+  assert.equal(r.via, 'first-result')
+  assert.equal(calls.opened, 1)
+  assert.equal(calls.switchVideo, 0)
+})
+
+test('next 在搜索页点不开时把原因说清楚，不冒充换片失败', async () => {
+  const controller = {
+    async state() { return sampleState({ pageKind: 'search', video: null }) },
+    async switchVideo() { throw new Error('不该走到这里') },
+    async openFirstResult() { return { ok: false, reason: 'no-search-result', hint: '这页没结果' } },
+  }
+  const r = await next({ controller })
+  assert.equal(r.ok, false)
+  assert.equal(r.reason, 'no-search-result')
+  assert.match(r.hint, /没结果/)
+})

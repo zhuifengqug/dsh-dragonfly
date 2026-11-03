@@ -368,6 +368,12 @@ export function apply(ctx, config = {}) {
           return json(res, r.ok ? 200 : 409, r)
         }
 
+        // 名字避开 /dy/* —— 那一支是桥专用（走令牌），这一支是设置页点的（走同源 + Cookie）
+        if (path === '/dy-reset' && isPost) {
+          const r = await dyHost.reset()
+          return json(res, r.ok ? 200 : 409, r)
+        }
+
         return json(res, 404, { ok: false, text: `没有这个口子：${path}` })
       } catch (e) {
         log(`路由 ${path} 炸了：${e?.message || e}`)

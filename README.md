@@ -543,12 +543,14 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 
 `dyDailyMinutes` 因此是**真闸门**，不是章程里的一句嘱咐——模型想多刷也刷不动。
 
-### 移植时踩过的四个坑（都已修，别再踩回去）
+### 移植时踩过的六个坑（都已修，别再踩回去）
 
 1. **裸 `https://www.douyin.com/` 会被甩到 `/jingxuan`**，那页没有能上下滑的作品流。得用 `?recommend=1&from_nav=1`，且落在 `/jingxuan` 时点一下导航里文本为「推荐」的 tab。
 2. **`page.evaluate` 不收源码字符串**。`String.raw` 写出来的函数传进去会被当表达式求值，返回 `undefined`，参数全丢。要先 `new Function` 编译成真函数再传。
-3. **`readyState=complete` 不代表有作品**。推荐流先挂直播卡（`live-preview`）再换成作品，中间有约一秒空窗。`navigate()` 之后要等到 `pageKind` 认得出是 `video` 或 `search` 才交回去（最多等 12 秒），否则 duty 那一轮读到 `unknown` 就按规矩跳过，整趟白跑。
+3. **`readyState=complete` 不代表有作品**。推荐流先挂直播卡（`live-preview`）再换成作品，中间有约一秒空窗。`navigate()` 之后要等到 `pageKind` 认得出是 `video` 或 `search` 才交回去；认出是 `live-preview` 就 4 秒内收手交给上层划走（直播卡不会自己变成作品，等满 12 秒也是白等）。
 4. **找不到 `playwright-core` 不要报「没装」就完事**。桌面版把它装在 profile 的 `node_modules` 里，插件自己的 `node_modules` 里没有。要按顺序找：环境变量 → 插件自己 → `$DSH_HOME/profiles/*/node_modules` → npm 全局，全都用 `pathToFileURL` 动态 import。
+5. **跑完不关浏览器，下一轮就会自己撞自己**。`port.json` 记的端口只是线索：上一轮那台 Edge 还占着 9227，`probePort` 却说「9227 不空」⇒ 挑 9228 ⇒ 同一个资料目录再 launch ⇒ Edge 单例把新进程转给老进程后立刻退出 ⇒ `launch-failed`。所以 `ensureBrowser` 要**先 `findLiveCdp` 接管活着的调试口**，没有才新开；`port.json` 只是"先试这个"的提示。
+6. **`im-dialog` 一直挂在 DOM 上**（私信面板没打开也存在）。按"有没有这个节点"判私信面板，会让推荐流永远落不进 `live-preview`，整片读成 `unknown`。要判它**可见**。
 
 ---
 
@@ -666,6 +668,9 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 抖音 `pageKind:'unknown'`，页面里只有导航壳 | 裸域名被甩到 `/jingxuan`，那页没有作品流 | 用 `?recommend=1&from_nav=1`，并点「推荐」tab |
 | 换片时 `Cannot read properties of undefined (reading 'blocked')` | `page.evaluate` 传源码字符串被当表达式求值 | `new Function` 编译成真函数再传 |
 | 抖音打开后立刻读状态是 `unknown`，那一轮直接跳过 | 客户端渲染，`readyState=complete` 时推荐流还没作品 | `navigate()` 后 `settleState()` 等到 `pageKind` 认得出为止 |
+| 抖音整轮 `dy-unknown`，日志里 `launch-failed` + `connect ECONNREFUSED 127.0.0.1:9228` | 跑完不关浏览器，上一轮那台 Edge 还占着 9227，而 `port.json` 记的是 9228；同一个资料目录再 launch 被单例转走后立刻退出 | `ensureBrowser` 先 `findLiveCdp()` 接管活着的调试口，没有才新开；`port.json` 只当"先试这个"的线索 |
+| 抖音一直停在直播卡上，`pageKind` 迟迟不变成 `video` | 推荐流里那张直播卡没有作品 id，等多久都不会变成作品 | `settleState` 认出 `live-preview` 就 4 秒收手；`open()` 自己划走一张并回报 `skipped`，`next()` 换到直播卡再接着划（最多两跳） |
+| 推荐流里明明只有一张直播卡，却读成 `unknown` 而不是 `live-preview` | `im-dialog`（私信面板）一直挂在 DOM 上，按"节点存在"判会永远判成私信态 | 判它**可见**：`querySelectorAll(...).some(visible)` |
 | `loadPlaywright()` 回 `no-playwright` | 桌面版把 `playwright-core` 装在 profile 的 `node_modules` 里 | 多根解析 + `pathToFileURL` 动态 import |
 | 日报里「总结」出现两段互相矛盾的话 | 同一天第二轮把总结追加在上一轮后面 | 给了 `note` 就整段替换，不拼接 |
 | 同一条既在「挑的」又在「扫过没收的」 | 模型把已收的 id 又塞进 skipped | 渲染前把 `picks` 里的 id 从 skips 里剔掉 |

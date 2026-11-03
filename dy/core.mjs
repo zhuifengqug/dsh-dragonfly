@@ -614,6 +614,75 @@ export class BrowserController {
   }
 
   /**
+   * 在搜索结果页点进第一条作品。
+   *
+   * 搜索页只给标题列表 —— 不点开就没有 id、没有时长、没有画面，那一轮只能记
+   * 「拿不到证据」。所以点这一下是搜索流程的一部分，不是额外福利。
+   * 返回 `{ ok:true, state }` 或 `{ ok:false, reason, hint }`。
+   */
+  async openFirstResult({ timeoutMs = 10_000 } = {}) {
+    const page = await this.ensurePage()
+    const before = identityOf(await this.state())
+
+    // 搜索页默认停在「综合」，视频卡是懒加载的 —— 先点一下「视频」这个 tab，
+    // 不然 DOM 里一个 /video/ 链接都没有（真机上就是这么空的）。
+    await page
+      .evaluate(() => {
+        const tab = [].slice
+          .call(document.querySelectorAll('div,span,a,li'))
+          .find((n) => n.children.length === 0 && /^视频$/.test((n.textContent || '').trim()))
+        if (tab) tab.click()
+      })
+      .catch(() => {})
+
+    const started = Date.now()
+    let clicked = false
+    while (Date.now() - started < timeoutMs) {
+      // 用真鼠标点卡片中心：抖音的卡片监听的是真事件，`a.click()` 会被拦掉
+      // （实测点了没反应，页面还停在搜索页）。
+      const spot = await page
+        .evaluate(() => {
+          const links = [].slice.call(document.querySelectorAll('a[href*="/video/"]'))
+          const usable = links.filter((a) => {
+            const r = a.getBoundingClientRect()
+            return r.width > 40 && r.height > 20 && /\/video\/\d{15,25}/.test(a.getAttribute('href') || '')
+          })
+          if (!usable.length) return null
+          const r = usable[0].getBoundingClientRect()
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+        })
+        .catch(() => null)
+      if (spot) {
+        await page.mouse.click(spot.x, spot.y).catch(() => {})
+        clicked = true
+        break
+      }
+      await sleep(600)
+    }
+    if (!clicked) {
+      return { ok: false, reason: 'no-search-result', hint: '搜索页里没找到能点开的作品卡片（点了「视频」也还是空的，可能这词真没结果）。' }
+    }
+    // 不能用 settleState：它一看到 pageKind==='search' 就回头交差，
+    // 而这时候弹层还没起来。这里只认「真拿到作品 id」。
+    const waitUntil = Date.now() + 12_000
+    let after = await this.state()
+    while (Date.now() < waitUntil) {
+      if (after?.video?.id) break
+      await sleep(500)
+      after = await this.state()
+    }
+    if (!after?.video?.id || identityOf(after) === before) {
+      return {
+        ok: false,
+        reason: 'result-not-opened',
+        hint: '点了第一条，但播放器没起来（可能被登录/验证挡住，或者那条是图文）。换一条或先 open 不带关键词刷推荐流。',
+        state: after,
+      }
+    }
+    return { ok: true, state: after }
+  }
+
+  /**
    * 截图：从当前视频视口裁。`seconds` 只决定**采几张**，不决定采多久。
    * 返回 { ok, images:[{data,mimeType}], dataBase64, mimeType, videoId, duration, count }
    */

@@ -288,6 +288,21 @@ window.__ModuleLoader__.load({
         finally { setBusy('') }
       }
 
+      /**
+       * 重置抖音登录态：会真把那个专用 Edge 关掉、把 profile 目录改名留底。
+       * 这是个不可逆动作（登录态没了要重新扫码），所以先问一句。
+       */
+      const resetDy = async () => {
+        const ask = typeof window?.confirm === 'function'
+        if (ask && !window.confirm('重置会把抖音的登录态清掉（旧的 profile 改名留着），下次跑要重新扫码。确定？')) return
+        setBusy('dyreset'); setMsg('')
+        try {
+          const r = await jpost('/dy-reset')
+          setMsg(r.text || '重置好了。')
+        } catch (e) { setMsg(`没重置成：${e.message || e}`) }
+        finally { setBusy('') }
+      }
+
       const importOld = async () => {
         setBusy('import')
         try {
@@ -464,8 +479,9 @@ window.__ModuleLoader__.load({
             // B站 登录
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 登录'),
-              logined ? h('span', { 'data-cf-note': '' }, `已登录（UID ${runtime.biliUid || '?'}）`)
-                : h(Btn, { onClick: startLogin, disabled: busy === 'login' }, '扫码登录')),
+              logined ? h('span', { 'data-cf-note': '' }, `已登录（UID ${runtime.biliUid || '?'}）`) : null,
+              // 按钮一直在 —— 凭证过期是很平常的事，登录之后把入口藏起来等于逼人删文件
+              h(Btn, { onClick: startLogin, disabled: busy === 'login' }, logined ? '重新扫码' : '扫码登录')),
             login?.qr ? h('div', { 'data-cf-qr': '' },
               h('img', { src: login.qr, alt: '登录二维码', style: { width: '180px', height: '180px' } }),
               h(Note, null, login.state === 'ok' ? '扫上了。'
@@ -477,8 +493,10 @@ window.__ModuleLoader__.load({
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '抖音浏览器'),
               h('span', { 'data-cf-note': '' },
-                runtime.dyProfile ? '登录态还留着' : '还没起过（第一次跑的时候会开一个专用窗口）')),
-            h(Note, null, '抖音要一个真浏览器窗口，第一次用得在里面登一次。之后登录态存在自己的 profile 里，跑完不关。'),
+                runtime.dyProfile ? '登录态还留着' : '还没起过（第一次跑的时候会开一个专用窗口）'),
+              h(Btn, { onClick: resetDy, disabled: busy === 'dyreset' }, '重置登录')),
+            h(Note, null, '抖音要一个真浏览器窗口，第一次用得在里面登一次。之后登录态存在自己的 profile 里，跑完不关。'
+              + '扫码过期或者被踢下线了，点「重置登录」再跑一轮就会重新要码。'),
 
             // 诊断 / 导入
             h(Row, null,

@@ -52,7 +52,7 @@ export async function open({ query, controller } = {}) {
     if (!isController(controller)) return noController()
     const text = typeof query === 'string' ? query.trim() : ''
     const target = text ? searchUrl(text) : HOME_URL
-    const navigated = await controller.navigate(target)
+    let navigated = await controller.navigate(target)
     let state = await controller.state()
     // 推荐流落到直播卡上是常态（那种卡没有作品 id，读不出标题时长）。
     // 这里替它往下划一张，别让那一轮直接抱着「读不出东西」收工。
@@ -64,11 +64,29 @@ export async function open({ query, controller } = {}) {
         skipped = 'live-preview'
       }
     }
+    // 还是读不出东西 ⇒ 再走一遍首屏。抖音首屏偶尔要十几秒才把作品挂上来，
+    // 只给一次机会的话那一轮就白跑了（真机上撞到过）。
+    if (!text && state?.pageKind === 'unknown') {
+      const again = await controller.navigate(target).catch(() => null)
+      if (again) navigated = again
+      const retried = await controller.state().catch(() => null)
+      if (retried) state = retried
+    }
+    // 搜索页只有标题列表，点不开就等于没看见 —— 替它点进第一条
+    let opened = null
+    if (text && state?.pageKind === 'search' && typeof controller.openFirstResult === 'function') {
+      const picked = await controller.openFirstResult().catch(() => null)
+      if (picked?.ok && picked.state) {
+        state = picked.state
+        opened = 'first-result'
+      }
+    }
     return {
       ok: true,
       query: text || null,
       url: navigated?.url ?? target,
       skipped,
+      opened,
       state,
     }
   })
@@ -94,6 +112,17 @@ export async function state({ controller } = {}) {
 export async function next({ controller } = {}) {
   return guard(async () => {
     if (!isController(controller)) return noController()
+    // 停在搜索页时没有"下一条"可滑 —— 先点进第一条，这才是搜索流程的下一步
+    const here = await controller.state()
+    if (here?.pageKind === 'search' && typeof controller.openFirstResult === 'function') {
+      const picked = await controller.openFirstResult().catch(() => null)
+      if (picked?.ok && picked.state) return { ok: true, state: picked.state, before: null, via: 'first-result', hopped: 0 }
+      return failure(
+        picked?.reason || 'no-search-result',
+        picked?.hint || '搜索页里没能点开作品。换一条关键词或先 open 不带 query 刷推荐流。',
+        { state: here },
+      )
+    }
     let result = await controller.switchVideo(1)
     let after = result?.state ?? (await controller.state())
     if (!result?.changed) {
