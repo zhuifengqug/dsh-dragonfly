@@ -14,7 +14,7 @@ const SOURCE = join(process.cwd(), 'client.js')
  *   ④ 假 ctx.slots：inject(key, cb) 直接 cb()，register 记下来
  * 这样能断言的正是"最难靠肉眼看出来、又最容易改坏"的东西：槽位名字、id、key、order。
  */
-async function loadClient() {
+async function loadClient(config = null) {
   const source = await readFile(SOURCE, 'utf8')
 
   let registration = null
@@ -36,7 +36,7 @@ async function loadClient() {
   vm.runInNewContext(source, {
     window,
     document: { createElement: () => ({ setAttribute() {}, remove() {} }), head: { appendChild() {} } },
-    fetch: async () => ({ ok: true, json: async () => ({}) }),
+    fetch: async () => ({ ok: true, json: async () => (config ? { config } : {}) }),
     setInterval: () => 0,
     clearInterval: () => {},
     console,
@@ -58,8 +58,9 @@ function makeClientCtx(react) {
   const slots = {
     inject(key, cb) { return cb() },
     register(options, component) {
-      registrations.push({ options, component })
-      return async () => {}
+      const entry = { options, component, disposed: false }
+      registrations.push(entry)
+      return () => { entry.disposed = true }
     },
   }
   const ctx = {
@@ -71,6 +72,9 @@ function makeClientCtx(react) {
   }
   return { ctx, registrations, effects }
 }
+
+/** apply 里读配置是异步的，等一拍让 promise 落地 */
+const tick = () => new Promise((r) => setTimeout(r, 0))
 
 test('client.js 自注册的 id 就是包名', async () => {
   const { registration } = await loadClient()
@@ -86,14 +90,27 @@ test('factory 返回 { inject: [slots], apply }', async () => {
   assert.equal(typeof mod.apply, 'function')
 })
 
-test('三处槽位都注册了：侧栏入口 / 主区整页 / 设置页', async () => {
+test('四处槽位都注册了：侧栏 / 主区 / 设置页 / 会话顶部', async () => {
   const { registration, react } = await loadClient()
   const mod = registration.factory(() => react)
   const { ctx, registrations } = makeClientCtx(react)
   mod.apply(ctx)
 
   const names = registrations.map((r) => r.options.name).sort()
-  assert.deepEqual(names, ['main', 'settings.section', 'sidebar.panellist'])
+  assert.deepEqual(names, ['conversation.view', 'main', 'settings.section', 'sidebar.panellist'])
+})
+
+test('会话顶部那块的 id / 顺序 / scope 是固定的', async () => {
+  const { registration, react } = await loadClient()
+  const mod = registration.factory(() => react)
+  const { ctx, registrations } = makeClientCtx(react)
+  mod.apply(ctx)
+
+  const conv = registrations.find((r) => r.options.name === 'conversation.view')
+  assert.equal(conv.options.id, 'caifeng-today')
+  assert.equal(conv.options.order, 20)
+  assert.equal(conv.options.scope, 'session')
+  assert.equal(conv.options.label, '采风')
 })
 
 test('主区页的 key 必须跟侧栏入口的 id 对上（否则进不去）', async () => {
@@ -130,7 +147,38 @@ test('槽位不存在时不影响其他槽位（缺一个也照样起）', async
     register(options) { registrations.push(options); return async () => {} },
   }
   assert.doesNotThrow(() => mod.apply({ get: () => slots, effect: () => {} }))
-  assert.equal(registrations.length, 2, '主区页与设置页仍然应该注册上')
+  assert.equal(registrations.length, 3, '主区页、设置页与会话顶部仍然应该注册上')
+})
+
+test('「显示」两个开关真把槽位摘掉，不是渲染空壳', async () => {
+  const { registration, react } = await loadClient({ showSidebar: false, showConversation: false })
+  const mod = registration.factory(() => react)
+  const { ctx, registrations } = makeClientCtx(react)
+  mod.apply(ctx)
+  await tick()
+
+  const side = registrations.find((r) => r.options.name === 'sidebar.panellist')
+  const conv = registrations.find((r) => r.options.name === 'conversation.view')
+  const main = registrations.find((r) => r.options.name === 'main')
+  const settings = registrations.find((r) => r.options.name === 'settings.section')
+
+  assert.ok(side.disposed, '关掉侧栏之后那个入口要被摘掉')
+  assert.ok(conv.disposed, '关掉会话顶部之后那一块要被摘掉')
+  assert.equal(main.disposed, false, '主区页不该跟着消失')
+  assert.equal(settings.disposed, false, '设置页不该跟着消失')
+})
+
+test('默认两个开关都开着', async () => {
+  const { registration, react } = await loadClient()
+  const mod = registration.factory(() => react)
+  const { ctx, registrations } = makeClientCtx(react)
+  mod.apply(ctx)
+  await tick()
+
+  const side = registrations.find((r) => r.options.name === 'sidebar.panellist')
+  const conv = registrations.find((r) => r.options.name === 'conversation.view')
+  assert.equal(side.disposed, false)
+  assert.equal(conv.disposed, false)
 })
 
 test('切私信到 auto 要单独确认一次，且拿不到 confirm 时按"不切"处理', async () => {

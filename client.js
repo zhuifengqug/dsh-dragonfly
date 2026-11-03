@@ -18,7 +18,7 @@ window.__ModuleLoader__.load({
   factory: (require) => {
     const React = require('react')
     const h = React.createElement
-    const { useState, useEffect, useMemo, useCallback } = React
+    const { useState, useEffect, useMemo, useCallback, useRef } = React
 
     const API = '/api/caifeng'
 
@@ -104,6 +104,52 @@ window.__ModuleLoader__.load({
 [data-cf-checks] li{display:flex;gap:6px;flex-wrap:wrap;}
 [data-cf-checks] li[data-ok="0"]{color:var(--dsw-alias-state-error-primary,#c0392b);}
 [data-cf-checks] em{font-style:normal;color:var(--dsw-alias-label-secondary,#5b6068);}
+
+/* ── 外壳：主区页要能自己滚，不能整页顶出去 ───────────────────────────── */
+[data-cf-shell]{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;}
+[data-cf-head]{flex:none;padding:2px 2px 0;}
+[data-cf-head] [data-cf-page]{padding-bottom:0;}
+[data-cf-body]{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 2px 18px;}
+[data-cf-body] [data-cf-page]{padding-top:0;}
+[data-cf-conv]{height:auto;max-height:420px;}
+
+/* ── 筛选：先信源，后日期 ─────────────────────────────────────────────── */
+[data-cf-filters]{display:flex;flex-direction:column;gap:6px;padding:10px 0 2px;}
+[data-cf-chips]{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+[data-cf-chip]{appearance:none;border:1px solid var(--dsw-alias-border-secondary,#d9dde2);background:transparent;
+  border-radius:999px;padding:2px 10px;cursor:pointer;font-size:11px;line-height:18px;font-family:inherit;
+  color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-chip]:hover{border-color:var(--dsw-alias-brand-primary,#4c7dff);}
+[data-cf-chip][data-on]{background:var(--dsw-alias-brand-primary,#4c7dff);border-color:transparent;color:#fff;}
+[data-cf-chip-gap]{width:8px;}
+
+/* ── 条目：封面 + 标题 + 档位 + 为什么值得 + 引文 ───────────────────────── */
+[data-cf-entry]{display:grid;grid-template-columns:112px 1fr;gap:12px;padding:14px 0;
+  border-bottom:1px solid var(--dsw-alias-border-secondary,#eef0f2);}
+[data-cf-entry][data-cf-flat]{grid-template-columns:1fr;}
+[data-cf-cover]{width:112px;height:63px;border-radius:6px;object-fit:cover;display:block;
+  background:var(--dsw-alias-bg-secondary,#f2f4f6);}
+[data-cf-cover-link]{display:block;line-height:0;}
+[data-cf-cover-ph]{width:112px;height:63px;border-radius:6px;
+  background:var(--dsw-alias-bg-secondary,#f2f4f6);}
+[data-cf-entry-main]{min-width:0;display:flex;flex-direction:column;gap:5px;}
+[data-cf-entry-h]{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;}
+[data-cf-title]{font-size:14px;line-height:20px;font-weight:600;color:inherit;text-decoration:none;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
+[data-cf-tier]{flex:none;font-size:11px;line-height:18px;padding:0 6px;border-radius:5px;
+  background:var(--dsw-alias-bg-secondary,#f2f4f6);color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-tier][data-good]{background:#e6f5ee;color:#1a7f52;}
+[data-cf-tier][data-bad]{background:#fdeeee;color:#b2453e;}
+[data-cf-why]{margin:0;font-size:13px;line-height:21px;color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-quote]{margin:2px 0 0;padding-left:9px;border-left:2px solid var(--dsw-alias-brand-primary,#4c7dff);
+  font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-meta]{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#8b9199);}
+[data-cf-sub]{font-size:11px;font-weight:600;letter-spacing:.04em;margin:16px 0 2px;
+  color:var(--dsw-alias-label-tertiary,#8b9199);}
+[data-cf-line]{font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary,#5b6068);
+  padding:3px 0;border-bottom:1px solid var(--dsw-alias-border-secondary,#f2f4f6);}
+[data-cf-line]:last-child{border-bottom:0;}
 `
 
     const StyleTag = () => h('style', { 'data-cf-style': '' }, CSS)
@@ -140,11 +186,50 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ── 「今天」页签（主区与设置页共用，设置页里是精简版） ────────────────────
+    // ── 封面 ──────────────────────────────────────────────────────────────────
+    //
+    // 服务端第一次要现去 B站 取图（几百毫秒到几秒）。慢的时候 `<img>` 会一直挂着不动，
+    // 而「挂着」既不触发 `load` 也不触发 `error`，界面上就是一块空白。
+    // 所以给它留一条退路：8 秒还没 `complete`，就带个 `r` 参数再要一次 ——
+    // 那时文件已经落在服务端缓存里，秒回。两次都不行才把位置让出来。
+    function Cover({ bvid, href }) {
+      const ref = useRef(null)
+      const [attempt, setAttempt] = useState(0)
+      const [dead, setDead] = useState(false)
+
+      useEffect(() => {
+        if (dead || attempt > 1) return undefined
+        const t = setTimeout(() => {
+          if (ref.current && !ref.current.complete) setAttempt((n) => n + 1)
+        }, 8000)
+        return () => clearTimeout(t)
+      }, [attempt, dead])
+
+      // 真拿不到就摆一个同尺寸的灰块：留白看着像加载失败，灰块看着像「这条没封面」
+      if (dead) return h('div', { 'data-cf-cover-ph': '' })
+      const src = `${API}/cover?bvid=${encodeURIComponent(bvid)}` + (attempt ? `&r=${attempt}` : '')
+      return h('a', {
+        'data-cf-cover-link': '', href: href || '#', target: '_blank', rel: 'noreferrer',
+        title: '在 B站 打开',
+      }, h('img', {
+        ref,
+        'data-cf-cover': '', src, alt: '', loading: 'lazy',
+        onError: () => {
+          if (attempt < 2) setAttempt((n) => n + 1)
+          else setDead(true)
+        },
+      }))
+    }
+
+    // ── 「今天」页（主区与设置页共用，设置页里是精简版） ──────────────────────
+    //
+    // 这一页的两次选择是分开的、有顺序的：**先挑信源，再挑日期**。
+    // 信源不选就是「全部」——那是最常看的一种，所以放第一个。
     function TodayPanel({ compact, onRun, busy }) {
       const [day, setDay] = useState('')
       const [days, setDays] = useState([])
       const [data, setData] = useState(null)
+      const [src, setSrc] = useState('all')
       const [err, setErr] = useState('')
 
       const load = useCallback(async (d) => {
@@ -165,7 +250,13 @@ window.__ModuleLoader__.load({
         h('div', { 'data-cf-warn': '' }, `读日报出错：${err}`))
 
       const view = data?.view
-      const entries = view ? view.sections.flatMap((s) => s.entries.map((e) => ({ ...e, section: s.title }))) : []
+      const sections = view?.sections || []
+      const picks = sections.find((s) => s.key === 'picks')?.entries || []
+      const shown = (e) => src === 'all' || e.source === src
+      const picked = picks.filter(shown)
+      const rest = sections.filter((s) => s.key !== 'picks')
+
+      const countOf = (key) => picks.filter((e) => key === 'all' || e.source === key).length
 
       // 空态自带一个「现在就跑」：新装的人第一眼看到的就是这里，
       // 让他在原地就能开始，别逼他先去找上面那条状态带。
@@ -176,31 +267,79 @@ window.__ModuleLoader__.load({
         }, busy ? '跑着呢…' : text)
         : null)
 
+      const chip = (key, label, n) => h('button', {
+        key, type: 'button', 'data-cf-chip': '', 'data-on': src === key ? '' : undefined,
+        onClick: () => setSrc(key),
+      }, n ? `${label} ${n}` : label)
+
+      const tiers = (t) => ({
+        'data-cf-tier': '',
+        'data-good': t === '值得看' ? '' : undefined,
+        'data-bad': t === '不值当' ? '' : undefined,
+      })
+
+      const entryCard = (e) => h('div', {
+        key: e.id || e.title,
+        'data-cf-entry': '',
+        'data-cf-flat': e.source === 'bili' ? undefined : '',
+      },
+      e.source === 'bili' && e.id
+        ? h(Cover, { key: 'cover', bvid: e.id, href: e.url })
+        : null,
+      h('div', { 'data-cf-entry-main': '' },
+        h('div', { 'data-cf-entry-h': '' },
+          e.url
+            ? h('a', { 'data-cf-title': '', href: e.url, target: '_blank', rel: 'noreferrer' }, e.title)
+            : h('div', { 'data-cf-title': '' }, e.title),
+          e.tier ? h('span', tiers(e.tier), e.tier) : null),
+        e.why ? h('p', { 'data-cf-why': '' }, e.why) : null,
+        e.quote ? h('div', { 'data-cf-quote': '' }, e.quote) : null,
+        h('div', { 'data-cf-meta': '' }, `${e.source === 'douyin' ? '抖音' : 'B站'} · ${e.id || '没有 id'}`)))
+
+      // 「扫过没收的」之类：只有一行标题，写成清单就行，别也铺封面
+      const flatLine = (text, key) => h('div', { key, 'data-cf-line': '' }, text)
+
+      const secBlock = (s) => {
+        const keep = (s.entries || []).filter(shown)
+        const lines = (s.lines || []).filter((l) => src === 'all'
+          || (src === 'bili' ? !/\[抖音\]/.test(l) : /\[抖音\]/.test(l)))
+        if (!keep.length && !lines.length) return null
+        return h('div', { key: s.key || s.title },
+          h('div', { 'data-cf-sub': '' }, s.title),
+          ...keep.map((e) => flatLine(`${e.title}${e.tier ? `　${e.tier}` : ''}`, e.id || e.title)),
+          ...lines.map((l, i) => flatLine(l, `${s.key || s.title}-${i}`)))
+      }
+
       return h('div', { 'data-cf-page': '', 'data-cf-wide': compact ? undefined : '' },
         h(StyleTag, null),
 
-        days.length > 1 ? h('div', { 'data-cf-days': '' },
-          days.map((d) => h('button', {
-            key: d, type: 'button', 'data-cf-day': '', 'data-on': (day || data?.day) === d ? '' : undefined,
-            onClick: () => setDay(d),
-          }, d.slice(5)))) : null,
+        h('div', { 'data-cf-filters': '' },
+          h('div', { 'data-cf-chips': '' },
+            chip('all', '全部', countOf('all')),
+            chip('bili', 'B站', countOf('bili')),
+            chip('douyin', '抖音', countOf('douyin'))),
+          days.length > 1 || day
+            ? h('div', { 'data-cf-chips': '' },
+              days.map((d) => h('button', {
+                key: d, type: 'button', 'data-cf-chip': '',
+                'data-on': (day || data?.day) === d ? '' : undefined,
+                onClick: () => setDay(d),
+              }, d.slice(5))))
+            : null),
 
         !data ? h('div', { 'data-cf-empty': '' }, '正在读…')
           : !data.exists ? h('div', { 'data-cf-empty': '' },
             h('div', null, '还没采过。'),
             runBtn('现在就跑'),
             h('div', { 'data-cf-note': '' }, '到点会自动跑一轮，也可以现在点一下。'))
-            : entries.length === 0
+            : picked.length === 0 && rest.every((s) => !(s.entries || []).length && !(s.lines || []).length)
               ? h('div', { 'data-cf-empty': '' }, '这一天的日报是空的。')
-              : h('div', null, entries.map((e) => h('div', { key: e.id || e.title, 'data-cf-entry': '' },
-                h(Row, null,
-                  h('div', { 'data-cf-entry-h': '', 'data-cf-grow': '' }, e.title),
-                  e.tier ? h('span', {
-                    'data-cf-tier': '',
-                    'data-good': e.tier === '值得看' ? '' : undefined,
-                    'data-bad': e.tier === '不值当' ? '' : undefined,
-                  }, e.tier) : null),
-                h('div', { 'data-cf-body': '' }, e.body)))),
+              : h('div', null,
+                picked.length
+                  ? h('div', null, picked.map(entryCard))
+                  : h('div', { 'data-cf-empty': '' },
+                    src === 'all' ? '这一天一条都没收。' : '这一天没有抖音的条目。'),
+                rest.map(secBlock)),
       )
     }
 
@@ -259,7 +398,7 @@ window.__ModuleLoader__.load({
           setCfg(r.config || cfg)
           setDirty({})
           setMsg('存好了。')
-          onSaved?.()
+          onSaved?.(r.config)
         } catch (e) { setErr(String(e.message || e)) }
       }
 
@@ -515,6 +654,19 @@ window.__ModuleLoader__.load({
               diag.logTail ? h('pre', { 'data-cf-log': '' }, diag.logTail) : null) : null,
           )),
 
+        // ── 显示：只决定入口挂不挂，不影响跑不跑 ──────────────────────────
+        h(Sec, { title: '显示' },
+          h(Row, null,
+            h('div', { 'data-cf-grow': '' }, h('div', { 'data-cf-label': '' }, '侧栏留个入口')),
+            h(Switch, { on: Boolean(val('showSidebar')), onChange: (v) => set('showSidebar', v) })),
+          h(Note, null, '关掉之后侧栏就没有「采风」这个按钮了 —— 主区页还能从会话顶部那块进来。'),
+
+          h(Row, null,
+            h('div', { 'data-cf-grow': '' }, h('div', { 'data-cf-label': '' }, '会话顶部挂「今天」')),
+            h(Switch, { on: Boolean(val('showConversation')), onChange: (v) => set('showConversation', v) })),
+          h(Note, null, '这是每个会话顶上那一块，显示当天挑出来的几条。嫌占地方就关掉。'),
+        ),
+
         h(Row, null,
           h(Btn, { onClick: save, primary: true }, '保存'),
           msg ? h('span', { 'data-cf-note': '' }, msg) : null,
@@ -549,16 +701,25 @@ window.__ModuleLoader__.load({
         finally { setBusy(false) }
       }
 
-      return h('div', { 'data-cf-page': '', 'data-cf-wide': tab === 'today' ? '' : undefined },
+      // 存完配置要顺手把「显示」那两个开关落到槽位上（真挂/真摘）
+      const onSaved = useCallback((cfg) => {
+        if (cfg) syncSlots(cfg)
+        refresh()
+      }, [refresh])
+
+      return h('div', { 'data-cf-shell': '' },
         h(StyleTag, null),
-        h(StatusBar, { status, onRun: run, busy }),
-        msg ? h('div', { 'data-cf-note': '' }, msg) : null,
-        h('div', { 'data-cf-tabs': '' },
-          h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
-          h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')),
-        tab === 'today'
-          ? h(TodayPanel, { compact: false, onRun: run, busy })
-          : h(SettingsPanel, { status, onSaved: refresh }),
+        h('div', { 'data-cf-head': '' },
+          h('div', { 'data-cf-page': '', 'data-cf-wide': tab === 'today' ? '' : undefined },
+            h(StatusBar, { status, onRun: run, busy }),
+            msg ? h('div', { 'data-cf-note': '' }, msg) : null,
+            h('div', { 'data-cf-tabs': '' },
+              h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
+              h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')))),
+        h('div', { 'data-cf-body': '' },
+          tab === 'today'
+            ? h(TodayPanel, { compact: false, onRun: run, busy })
+            : h(SettingsPanel, { status, onSaved: onSaved })),
       )
     }
 
@@ -585,21 +746,78 @@ window.__ModuleLoader__.load({
         finally { setBusy(false) }
       }
 
-      return h('div', { 'data-cf-page': '' },
+      const onSaved = useCallback((cfg) => {
+        if (cfg) syncSlots(cfg)
+        refresh()
+      }, [refresh])
+
+      return h('div', { 'data-cf-shell': '' },
         h(StyleTag, null),
-        h('div', { 'data-cf-tabs': '' },
-          h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
-          h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')),
-        msg ? h('div', { 'data-cf-note': '' }, msg) : null,
-        tab === 'today'
-          ? h(TodayPanel, { compact: true, onRun: run, busy })
-          : h(SettingsPanel, { status, onSaved: refresh }),
+        h('div', { 'data-cf-head': '' },
+          h('div', { 'data-cf-page': '' },
+            h('div', { 'data-cf-tabs': '' },
+              h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'today' ? '' : undefined, onClick: () => setTab('today') }, '今天'),
+              h('button', { type: 'button', 'data-cf-tab': '', 'data-on': tab === 'settings' ? '' : undefined, onClick: () => setTab('settings') }, '设置')),
+            msg ? h('div', { 'data-cf-note': '' }, msg) : null)),
+        h('div', { 'data-cf-body': '' },
+          tab === 'today'
+            ? h(TodayPanel, { compact: true, onRun: run, busy })
+            : h(SettingsPanel, { status, onSaved: onSaved })),
       )
     }
 
-    // 侧栏按钮：一个字符，跟蜂群那边一样
+    /**
+     * 侧栏图标：内联 SVG，不吃饭的 emoji。
+     * 描边 `currentColor`、16px、1.5 —— 跟宿主那几个图标同一套语言。
+     */
     function SidebarEntry() {
-      return h('span', { title: '采风', 'aria-label': '采风', role: 'img' }, '🧭')
+      return h('span', { title: '采风', 'aria-label': '采风', role: 'img', 'data-cf-icon': '' },
+        h('svg', {
+          viewBox: '0 0 16 16', width: 16, height: 16, fill: 'none',
+          stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': 'true',
+        },
+        h('circle', { cx: 8, cy: 8, r: 6.1 }),
+        h('path', { d: 'M10.4 5.6 9.2 9.2 5.6 10.4 6.8 6.8z', fill: 'currentColor', stroke: 'none' })))
+    }
+
+    // 会话顶部那一块：只读，「今天」的精简版
+    function ConversationPanel() {
+      return h('div', { 'data-cf-shell': '', 'data-cf-conv': '' },
+        h(StyleTag, null),
+        h('div', { 'data-cf-body': '' }, h(TodayPanel, { compact: true })))
+    }
+
+    /**
+     * 槽位开关。
+     *
+     * ⚠️ 两个开关要**真的挂上/摘掉**，不是渲染个空壳 ——
+     * 空壳会留一个点不开的按钮，比没有更糟。
+     * `slots.inject` 的回调只在槽位真的存在时触发，所以注册放在它里面；
+     * 之后改配置时直接复用同一个 register/dispose 对。
+     */
+    const prefs = { sidebar: true, conversation: true }
+    const slotState = { ready: {}, dispose: {} }
+    const mounters = {}
+
+    function mountSlot(name) {
+      if (!slotState.ready[name] || slotState.dispose[name]) return
+      try { slotState.dispose[name] = mounters[name]?.() || null } catch { slotState.dispose[name] = null }
+    }
+    function unmountSlot(name) {
+      const d = slotState.dispose[name]
+      slotState.dispose[name] = null
+      try { d?.() } catch { /* 已经没了 */ }
+    }
+    function syncSlots(cfg) {
+      if (cfg) {
+        prefs.sidebar = cfg.showSidebar !== false
+        prefs.conversation = cfg.showConversation !== false
+      }
+      const want = { 'sidebar.panellist': prefs.sidebar, 'conversation.view': prefs.conversation }
+      for (const name of Object.keys(want)) {
+        if (want[name]) mountSlot(name)
+        else unmountSlot(name)
+      }
     }
 
     return {
@@ -607,6 +825,22 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         const slots = (typeof ctx.get === 'function' ? ctx.get('slots') : undefined) || ctx.slots
         if (!slots) return
+
+        // 主区页与设置页一直挂 —— 它们是「怎么进来」的两条腿，不随显示开关消失
+        const always = {
+          main: () => slots.register({ name: 'main', key: 'caifeng', label: '采风' }, MainPanel),
+          'settings.section': () => slots.register({
+            name: 'settings.section', id: 'caifeng', order: 60, label: '采风',
+          }, SettingsSection),
+        }
+        const optional = {
+          'sidebar.panellist': () => slots.register({
+            name: 'sidebar.panellist', id: 'caifeng', order: 100, label: '采风',
+          }, SidebarEntry),
+          'conversation.view': () => slots.register({
+            name: 'conversation.view', id: 'caifeng-today', order: 20, scope: 'session', label: '采风',
+          }, ConversationPanel),
+        }
 
         const cleanups = []
         const reg = (key, make) => {
@@ -619,23 +853,25 @@ window.__ModuleLoader__.load({
           } catch (e) { /* 这个槽位不存在就算了，别把整页带崩 */ }
         }
 
-        // ① 侧栏入口（没有它就没有进主区页的按钮）
-        reg('sidebar.panellist', () => slots.register({
-          name: 'sidebar.panellist', id: 'caifeng', order: 100, label: '采风',
-        }, SidebarEntry))
+        for (const [k, make] of Object.entries(always)) reg(k, make)
 
-        // ② 主区整页（key 必须跟侧栏那个 id 对上）
-        reg('main', () => slots.register({
-          name: 'main', key: 'caifeng', label: '采风',
-        }, MainPanel))
+        for (const [k, make] of Object.entries(optional)) {
+          mounters[k] = make
+          try {
+            slots.inject(k, () => {
+              slotState.ready[k] = true
+              if (k === 'sidebar.panellist' ? prefs.sidebar : prefs.conversation) mountSlot(k)
+              return () => { slotState.ready[k] = false; unmountSlot(k) }
+            })
+          } catch { /* 这个宿主没有这个槽位 */ }
+        }
 
-        // ③ 设置页里的一页
-        reg('settings.section', () => slots.register({
-          name: 'settings.section', id: 'caifeng', order: 60, label: '采风',
-        }, SettingsSection))
+        // 先按默认（都挂）走，再把真实配置读回来校正一次
+        syncSlots(null)
+        jget('/config').then((r) => syncSlots(r.config)).catch(() => {})
 
-        // 卸载时反序清理
         ctx.effect?.(() => () => {
+          for (const k of Object.keys(slotState.dispose)) unmountSlot(k)
           for (const fn of [...cleanups].reverse()) {
             try { fn?.() } catch { /* ignore */ }
           }

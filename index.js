@@ -20,6 +20,8 @@ import { createCaifengService } from './lib/service.mjs'
 import { DEFAULTS, FIELD_LABELS, clampConfig, pickKnownKeys } from './lib/config.mjs'
 import { listModels, currentDefault } from './lib/models.mjs'
 import { createDyHost } from './lib/dy-host.mjs'
+import { ensureCover, readCover } from './lib/covers.mjs'
+import { readCredential } from './lib/login.mjs'
 
 const pluginDir = dirname(fileURLToPath(import.meta.url))
 
@@ -85,6 +87,8 @@ export const Config = !z ? undefined : z.object({
   dmMode: describe(z.string()),
   dmUid: describe(z.number()),
   pythonPath: describe(z.string()),
+  showSidebar: describe(z.boolean()),
+  showConversation: describe(z.boolean()),
 })
 
 /** 文本输出（跟 bili 一样的形状，宿主认这个） */
@@ -306,6 +310,38 @@ export function apply(ctx, config = {}) {
 
         if (path === '/days' && !isPost) {
           return json(res, 200, { ok: true, days: service.reportDays(7) })
+        }
+
+        /**
+         * 封面图：给 `[data-cf-cover]` 的 `<img>` 用。
+         * `<img>` 是同源请求、不带 Origin 头（`sameOriginOk` 对这种放行），Cookie 会自己带上。
+         * 拿不到就 404 —— 界面按 `onError` 把图藏掉，不留破图。
+         */
+        if (path === '/cover' && !isPost) {
+          const bvid = url.searchParams.get('bvid') || ''
+          const cred = readCredential(service.layout.biliCredential)
+          const r = await ensureCover(service.layout, bvid, {
+            cookie: cred?.sessdata ? `SESSDATA=${cred.sessdata}` : '',
+            log,
+          })
+          if (!r.ok) {
+            res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+            res.end('no cover')
+            return
+          }
+          const buf = readCover(r.file)
+          if (!buf) {
+            res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+            res.end('no cover')
+            return
+          }
+          res.writeHead(200, {
+            'content-type': 'image/jpeg',
+            'content-length': String(buf.length),
+            'cache-control': 'public, max-age=604800',
+          })
+          res.end(buf)
+          return
         }
 
         // ── 运行环境：Python / 登录 / 模型 / 诊断 ──────────────────────────

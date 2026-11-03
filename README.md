@@ -80,7 +80,8 @@ bili 真正值钱的三件事，抖音一件都没有：
 │  ├─ clock.mjs                时窗判定（北京时区、跨零点、谷时）
 │  ├─ config.mjs               默认值与钳制（永不抛）、volatile 脱壳
 │  ├─ seen.mjs                 判重表读写（扫描定位 id，不认列位）
-│  ├─ report.mjs               日报拼装与合并（按 id 整条替换）
+│  ├─ report.mjs               日报拼装与合并（按 id 整条替换）+ 界面要的字段拆解
+│  ├─ covers.mjs               封面缓存（B站 x/web-interface/view → covers/<BV>.jpg）
 │  ├─ charter.mjs              章程取件 + 把设置页的值讲给模型听
 │  ├─ duty.mjs                 profile 铺设、overlay 生成、dsh/node 解析、spawn
 │  ├─ service.mjs              宿主这一头：状态、跑一轮、调度、写口
@@ -151,6 +152,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 ├─ config.json              唯一配置（§9）
 ├─ out/2026-11-01.md        日报，按日期
 ├─ reports/BV1xx.md         单片笔记（notesEnabled 时写）
+├─ covers/BV1xx.jpg         封面缓存（界面上那张缩略图，取一次存下来）
 ├─ seen.md                  判重表（§8）
 ├─ seen/2026-10.md          判重表滚动归档（超过 30 天的行挪这里）
 ├─ state.json               当天计数（收了几条、跑了几次、抖音看了几秒）
@@ -375,7 +377,11 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
   "dmUid": 0,
 
   // —— 运行环境（设置页自己写的，一般不用手改） ——
-  "pythonPath": ""             // 空 = 还没装；点过"装 Python 环境"就自动填上
+  "pythonPath": "",            // 空 = 还没装；点过"装 Python 环境"就自动填上
+
+  // —— 显示：只决定入口挂不挂，不影响跑不跑 ——
+  "showSidebar": true,         // 侧栏留个入口
+  "showConversation": true     // 会话顶部挂「今天」
 }
 ```
 
@@ -409,14 +415,28 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 ### 页签一：今天
 
-- 今日日报正文（只读渲染，`<家目录>/out/<今天>.md`）
-- 日期切换（最近 7 天）
-- 空态：今天还没跑 → 显示"还没采过，[现在就跑]"
-- 与主区页是**同一个组件**，这里挂精简版（无侧栏、无导出按钮）
+**先选信源，再选日期，然后看正文。** 顺序是刻意的：多数时候你要的是「全部」，所以它排第一；信源定了之后，日期才有意义。
+
+```
+[全部 7] [B站 5] [抖音 2]          [11-03] [11-02]
+────────────────────────────────────────────────
+[封面 112×63]  我让 AI 组了个队：一个管家两个打工的   值得看
+                12 分 40 秒，播放 3.2 万，评论 47 条…
+                │ 这句「分工不等于独立审核」比功能清单值钱
+                B站 · BV1YL4K66EHG
+```
+
+- 信源 chip 上带条数（只数「值得看」），点一下就把下面过滤掉
+- 日期 chip 取最近 7 天；只选信源不选日期时看今天
+- 每条：**封面缩略图**（点开去 B站，`<img>` 走 `/api/caifeng/cover?bvid=`，拿不到就把位置让出来）+ 标题（点开去原视频）+ 档位 chip + 「为什么值得」正文 + 左竖线引文
+- 抖音的条目没有封面（那个站没有公开接口），单列铺满
+- 「扫过没收的」「因缺证据跳过」这些按节列在下面，也按信源过滤
+- 空态：今天还没跑 → "还没采过，[现在就跑]"
+- 与主区页是**同一个组件**（`TodayPanel`），这里挂精简版（`compact`，不铺 900 宽）
 
 ### 页签二：设置
 
-四段平铺，后两段默认折起：
+五段平铺，后两段默认折起：
 
 | 段 | 项 |
 |---|---|
@@ -424,10 +444,13 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 | **怎么挑** | 关键词、排除词、排序、翻页、人格 |
 | **互动与产出**（折起） | 自动评论（开关/每轮/长度/@谁）、回复评论、私信、收藏夹、单片笔记、日报详略 |
 | **运行环境**（折起） | **模型下拉**、**存放位置**、B站登录、抖音浏览器、诊断、Python 环境 |
+| **显示** | 侧栏留个入口、会话顶部挂「今天」 |
+
+「显示」那两个开关是**真挂/真摘槽位**，不是渲染空壳：关掉侧栏就把 `sidebar.panellist` 那条注销掉，关掉会话顶部就把 `conversation.view` 注销掉。空壳会留一个点不开的按钮，比没有更糟。主区页（`main`）与设置页（`settings.section`）**不随这两个开关消失** —— 它们是「怎么进来」的两条腿。
 
 视觉规则：
 
-- 单列，`max-width: 640px`；主区页可放宽到 900px
+- 单列，`max-width: 640px`；主区页的「今天」放宽到 900px，设置页回到 640
 - 只有两种字号：13px 正文 / 11px 小节标题
 - 不要卡片墙，用分组 + 分隔线
 - 一套自绘 CSS，不复用 bili 的 `[data-bd-*]`，也不复用 douyin 的 primitives 内联样式
@@ -437,17 +460,24 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 ```
 采风                                    [现在就跑]
 今日已收 3 条 · 额度 5 · 下次 14:00
-────────────────────────────────────────
-今日日报（完整渲染）
-────────────────────────────────────────
-最近 7 天  ·  2026-10-31  ·  2026-10-30 …
+今天 | 设置
+────────────────────────────────────  ← 这条以上固定，以下滚
+[全部 3] [B站 3] [抖音 0]        [11-03] [11-02]
+[封面] 我让 AI 组了个队…              值得看
+       …
 ```
 
-`main` 是 **keyed** 槽：`register({ name:'main', key:'caifeng' }, …)`。它自己不会出现在侧栏——**必须同时注册 `sidebar.panellist`（`{ id:'caifeng', order:100, label:'采风' }`）**，侧栏那个图标才是进主区页的唯一入口。两者 id/key 都是 `caifeng`，配对关系，缺一个就进不去。
+外壳是 `height:100%` 的 flex 列，表头（状态带 + 页签）`flex:none`，正文区 `flex:1;min-height:0;overflow-y:auto` —— **页面自己滚，不是整块被顶出去**（照群策 `client.js` 那套写法）。
 
-设置页走 `settings.section`（`{ id:'caifeng', order:60, label:'采风' }`）。三处注册各自 try/catch，缺一个另外两个照起。
+`main` 是 **keyed** 槽：`register({ name:'main', key:'caifeng' }, …)`。它自己不会出现在侧栏——**必须同时注册 `sidebar.panellist`（`{ id:'caifeng', order:100, label:'采风' }`）**，侧栏那个图标才是进主区页的唯一入口。两者 id/key 都是 `caifeng`，配对关系，缺一个就进不去。侧栏图标是**内联 SVG 罗盘**（16px、`currentColor`、1.5 描边），不是 emoji —— emoji 在那一列单色图标里显得脏。
 
-数据面：客户端只读 `/api/caifeng/*` 这几张口子 —— `status` `config`(GET/POST) `run` `report` `days` `models` `python`(GET/POST) `login/start` `login/poll` `whoami` `diagnose` `review` `import` `move-home`。抖音桥走 `/api/caifeng/dy/<action>`，那条不走同源判断，走 `x-caifeng-token`。
+会话顶部还有一块 `conversation.view`（`{ id:'caifeng-today', order:20, scope:'session', label:'采风' }`），内容就是「今天」的精简版；它替换掉了原来 bili 插件挂的「刷过的视频」。
+
+设置页走 `settings.section`（`{ id:'caifeng', order:60, label:'采风' }`）。四处注册各自 try/catch，缺一个其他照起。
+
+数据面：客户端只读 `/api/caifeng/*` 这几张口子 —— `status` `config`(GET/POST) `run` `report` `days` `cover` `models` `python`(GET/POST) `login/start` `login/poll` `whoami` `diagnose` `review` `import` `move-home` `dy-reset`。抖音桥走 `/api/caifeng/dy/<action>`，那条不走同源判断，走 `x-caifeng-token`。
+
+`cover` 只服务 B站：先看 `<家目录>/covers/<BV号>.jpg`，没有就去 `x/web-interface/view` 取 `data.pic` 再下图存起来（4MB 上限、8 秒超时）。拿不到就 404，界面把图藏掉，不留破图。
 
 ---
 
@@ -676,6 +706,10 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | `loadPlaywright()` 回 `no-playwright` | 桌面版把 `playwright-core` 装在 profile 的 `node_modules` 里 | 多根解析 + `pathToFileURL` 动态 import |
 | 日报里「总结」出现两段互相矛盾的话 | 同一天第二轮把总结追加在上一轮后面 | 给了 `note` 就整段替换，不拼接 |
 | 同一条既在「挑的」又在「扫过没收的」 | 模型把已收的 id 又塞进 skipped | 渲染前把 `picks` 里的 id 从 skips 里剔掉 |
+| 主区页滚不动，内容被整块顶出去 | 外壳没有高度约束，`overflow` 落在错的那层 | 外壳 `height:100%;display:flex;flex-direction:column;overflow:hidden`，正文 `flex:1;min-height:0;overflow-y:auto` |
+| 侧栏那个 emoji 图标跟旁边一圈单色线性图标格格不入 | `🧭` 是彩色 emoji，不吃 `currentColor` | 内联 SVG：16px、`stroke="currentColor"`、1.5 描边 |
+| 界面上直接露出 `**档位**：` `**为什么值得**：` 这类原始标记 | 前端把正文整段 `pre-wrap` 出来 | `lib/report.mjs` 的 `entryDetail()` 把 `why` / `quote` / `url` 拆成字段，前端只渲染字段 |
+| 关掉「侧栏入口」后还留着一个点不开的按钮 | 做成渲染空壳，槽位其实还挂着 | 开关要**真注销** `sidebar.panellist` / `conversation.view`，重新打开再注册 |
 
 ---
 

@@ -168,6 +168,25 @@ test('reportView 给出界面要的结构', () => {
   assert.equal(picks.entries[0].hasNumbers, true)
 })
 
+test('reportView 把「为什么值得」与「我的一句话」拆出来，界面不再露原始标记', () => {
+  const v = reportView(`# 2026-11-02\n\n${ENTRY_A}\n`)
+  const e = v.sections.find((s) => s.title === '今天挑的').entries[0]
+  assert.match(e.why, /12 分钟讲完了一件事/)
+  assert.doesNotMatch(e.why, /\*\*为什么值得\*\*/)
+  assert.match(e.quote, /可以。/)
+  assert.doesNotMatch(e.quote, /\*\*我的一句话\*\*/)
+})
+
+test('reportView 由 id 推出视频地址，不认日报里没写的链接', () => {
+  const bili = reportView(`# 2026-11-02\n\n${ENTRY_A}\n`).sections[0].entries[0]
+  assert.equal(bili.url, 'https://www.bilibili.com/video/BV1xx411c7mD')
+  const dy = reportView('# 2026-11-02\n\n### [抖音] 7703424057992145849 / 一条抖音\n**档位**：可以看\n')
+    .sections[0].entries[0]
+  assert.equal(dy.url, 'https://www.douyin.com/video/7703424057992145849')
+  const bad = reportView('# 2026-11-02\n\n### [B站] 不是BV号 / 标题\n**档位**：可以看\n').sections[0].entries[0]
+  assert.equal(bad.url, '')
+})
+
 // ── 配置 ─────────────────────────────────────────────────────────────────────
 test('clampConfig 越界值夹住、认不出的退回默认、永不抛', () => {
   const c = clampConfig({ perDay: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', windows: ['瞎写'] })
