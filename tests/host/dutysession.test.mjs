@@ -122,6 +122,33 @@ test('记录里没有起始日：接着写，别浪费那条会话', () => {
   } finally { f.cleanup() }
 })
 
+test('还没有记录时：认领目录里最新那条，不再凭空新建', () => {
+  const f = fixture({ sessionId: null })
+  try {
+    // 目录里放一条"上一轮留下的"会话，文件时间是今天
+    const dir = join(f.sessions, projectKey(CWD), 'session-yesterday')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'session.v4.jsonl.zstd'), 'x')
+    const lines = []
+    const r = pickDutySession({
+      layout: f.layout, sessionsRoot: f.sessions, cwd: CWD, today: '2026-11-04',
+      log: (l) => lines.push(l),
+    })
+    assert.equal(r?.id, 'session-yesterday')
+    assert.equal(r.why, 'adopted')
+    // 认领完要写回记录，下一轮才算得清天数
+    assert.equal(loadDutySession(f.layout)?.id, 'session-yesterday')
+    assert.match(lines[0], /认领目录里最新那条/)
+  } finally { f.cleanup() }
+})
+
+test('还没有记录、目录也空：老老实实返回 null', () => {
+  const f = fixture({ sessionId: null })
+  try {
+    assert.equal(pickDutySession({ layout: f.layout, sessionsRoot: f.sessions, cwd: CWD, today: '2026-11-04' }), null)
+  } finally { f.cleanup() }
+})
+
 test('dutySessionFileExists 只认非空文件', () => {
   const f = fixture({ startedOn: '2026-11-04' })
   try {
