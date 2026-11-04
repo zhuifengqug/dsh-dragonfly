@@ -111,10 +111,28 @@ window.__ModuleLoader__.load({
 [data-cf-head] [data-cf-page]{padding-bottom:0;}
 [data-cf-body]{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 2px 18px;}
 [data-cf-body] [data-cf-page]{padding-top:0;}
-[data-cf-conv]{height:auto;max-height:420px;}
+/* 会话顶部那一块要铺满，跟「轨迹」那个上游视图一样：占满 viewArea、自己滚。
+   难点在宿主这层 —— 那个 viewArea 在 data-phase=active 时是
+   flex:1 0 auto + min-height:auto，也就是「高度跟着内容长」，子元素写
+   height:100% 等于循环依赖，撑不起来（试过，整列算成 3611px，滚条跑到
+   宿主的列表滚动层上）。
+   所以反过来改父级：用结构选择器（不认宿主那几个哈希类名，升级换了哈希
+   也还命中）把 viewArea 改成 flex:1 1 0 + min-height:0，让它吃满
+   scrollBody，再让外壳在里头 flex:1 铺满。 */
+[data-slot="conversation.session"] > div:has(> [data-slot="conversation.view"] > [data-cf-conv]){
+  flex:1 1 0;min-height:0;overflow:hidden;}
+[data-cf-conv]{flex:1 1 0;min-height:0;height:auto;max-height:none;
+  display:flex;flex-direction:column;
+  border-top:1px solid var(--dsw-alias-border-secondary,#eceff3);}
+[data-cf-conv] [data-cf-body]{flex:1;min-height:0;overflow-y:auto;padding-bottom:4px;}
+/* 会话区本来就有一千多像素，别再按主区那个 900 压窄 */
+[data-cf-conv] [data-cf-page]{max-width:none;padding:0 16px 2px;}
 
-/* ── 筛选：先信源，后日期 ─────────────────────────────────────────────── */
+/* ── 筛选：先信源，再档位，最后日期 ───────────────────────────────────── */
 [data-cf-filters]{display:flex;flex-direction:column;gap:6px;padding:10px 0 2px;}
+/* 会话顶部那一块矮，chip 得钉住，不然翻两条就滚没了 */
+[data-cf-conv] [data-cf-sticky]{position:sticky;top:0;z-index:2;
+  background:var(--dsw-alias-bg-elevated,#fff);padding:6px 0 4px;}
 [data-cf-chips]{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
 [data-cf-chip]{appearance:none;border:1px solid var(--dsw-alias-border-secondary,#d9dde2);background:transparent;
   border-radius:999px;padding:2px 10px;cursor:pointer;font-size:11px;line-height:18px;font-family:inherit;
@@ -122,6 +140,11 @@ window.__ModuleLoader__.load({
 [data-cf-chip]:hover{border-color:var(--dsw-alias-brand-primary,#4c7dff);}
 [data-cf-chip][data-on]{background:var(--dsw-alias-brand-primary,#4c7dff);border-color:transparent;color:#fff;}
 [data-cf-chip-gap]{width:8px;}
+/* 档位那一排：跟信源那排长得不一样，一眼能看出是两种筛子 */
+[data-cf-tier-chip]{border-style:dashed;}
+[data-cf-tier-chip][data-tier="值得看"][data-on]{background:#1a7f52;border-color:transparent;}
+[data-cf-tier-chip][data-tier="可以看"][data-on]{background:#8a6100;border-color:transparent;}
+[data-cf-tier-chip][data-tier="不值当"][data-on]{background:#b2453e;border-color:transparent;}
 
 /* ── 条目：封面 + 标题 + 档位 + 为什么值得 + 引文 ───────────────────────── */
 [data-cf-entry]{display:grid;grid-template-columns:112px 1fr;gap:12px;padding:14px 0;
@@ -225,11 +248,12 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
     //
     // 这一页的两次选择是分开的、有顺序的：**先挑信源，再挑日期**。
     // 信源不选就是「全部」——那是最常看的一种，所以放第一个。
-    function TodayPanel({ compact, onRun, busy }) {
+    function TodayPanel({ compact, wide, onRun, busy }) {
       const [day, setDay] = useState('')
       const [days, setDays] = useState([])
       const [data, setData] = useState(null)
       const [src, setSrc] = useState('all')
+      const [tier, setTier] = useState('all')
       const [err, setErr] = useState('')
 
       const load = useCallback(async (d) => {
@@ -252,11 +276,17 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
       const view = data?.view
       const sections = view?.sections || []
       const picks = sections.find((s) => s.key === 'picks')?.entries || []
-      const shown = (e) => src === 'all' || e.source === src
+      const shown = (e) => (src === 'all' || e.source === src)
+        && (tier === 'all' || e.tier === tier)
       const picked = picks.filter(shown)
       const rest = sections.filter((s) => s.key !== 'picks')
 
       const countOf = (key) => picks.filter((e) => key === 'all' || e.source === key).length
+
+      // 档位筛子只列这一天真正出现过的档位 —— 没出现过的摆上去只会让人白点一下
+      const tierKeys = ['值得看', '可以看', '不值当']
+        .filter((t) => picks.some((e) => e.tier === t))
+      const tierCount = (t) => picks.filter((e) => t === 'all' || e.tier === t).length
 
       // 空态自带一个「现在就跑」：新装的人第一眼看到的就是这里，
       // 让他在原地就能开始，别逼他先去找上面那条状态带。
@@ -270,6 +300,14 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
       const chip = (key, label, n) => h('button', {
         key, type: 'button', 'data-cf-chip': '', 'data-on': src === key ? '' : undefined,
         onClick: () => setSrc(key),
+      }, n ? `${label} ${n}` : label)
+
+      // 档位 chip 单独一套：它跟信源是两个正交的筛子，选中态各看各的
+      const tierChip = (key, label, n) => h('button', {
+        key, type: 'button', 'data-cf-chip': '', 'data-cf-tier-chip': '',
+        'data-on': tier === key ? '' : undefined,
+        'data-tier': key,
+        onClick: () => setTier(key),
       }, n ? `${label} ${n}` : label)
 
       const tiers = (t) => ({
@@ -310,14 +348,21 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           ...lines.map((l, i) => flatLine(l, `${s.key || s.title}-${i}`)))
       }
 
-      return h('div', { 'data-cf-page': '', 'data-cf-wide': compact ? undefined : '' },
+      return h('div', { 'data-cf-page': '', 'data-cf-wide': compact && !wide ? undefined : '' },
         h(StyleTag, null),
 
-        h('div', { 'data-cf-filters': '' },
+        // 筛子要钉在顶上：会话顶部那块高度只有四百来像素，
+        // 往下翻两条 chip 就滚没了，想换档位还得先滚回顶部。
+        h('div', { 'data-cf-filters': '', 'data-cf-sticky': '' },
           h('div', { 'data-cf-chips': '' },
             chip('all', '全部', countOf('all')),
             chip('bili', 'B站', countOf('bili')),
             chip('douyin', '抖音', countOf('douyin'))),
+          tierKeys.length > 1
+            ? h('div', { 'data-cf-chips': '' },
+              tierChip('all', '所有档位', 0),
+              tierKeys.map((t) => tierChip(t, t, tierCount(t))))
+            : null,
           days.length > 1 || day
             ? h('div', { 'data-cf-chips': '' },
               days.map((d) => h('button', {
@@ -338,7 +383,15 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
                 picked.length
                   ? h('div', null, picked.map(entryCard))
                   : h('div', { 'data-cf-empty': '' },
-                    src === 'all' ? '这一天一条都没收。' : '这一天没有抖音的条目。'),
+                    (() => {
+                      const bySrc = src === 'all' ? '' : (src === 'douyin' ? '抖音' : 'B站')
+                      if (tier !== 'all') {
+                        return bySrc
+                          ? `这一天没有「${tier}」的${bySrc}条目。`
+                          : `这一天没有「${tier}」的条目。`
+                      }
+                      return bySrc ? `这一天没有${bySrc}的条目。` : '这一天一条都没收。'
+                    })()),
                 rest.map(secBlock)),
       )
     }
@@ -790,11 +843,12 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
         h('path', { d: 'M10.4 5.6 9.2 9.2 5.6 10.4 6.8 6.8z', fill: 'currentColor', stroke: 'none' })))
     }
 
-    // 会话顶部那一块：只读，「今天」的精简版
+    // 会话顶部那一块：只读，「今天」的精简版。
+    // 这里不压宽度 —— 会话区本来就有一千多像素，压到 640 只会右边空一大片。
     function ConversationPanel() {
       return h('div', { 'data-cf-shell': '', 'data-cf-conv': '' },
         h(StyleTag, null),
-        h('div', { 'data-cf-body': '' }, h(TodayPanel, { compact: true })))
+        h('div', { 'data-cf-body': '' }, h(TodayPanel, { compact: true, wide: true })))
     }
 
     /**

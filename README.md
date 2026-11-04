@@ -82,6 +82,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 │  ├─ seen.mjs                 判重表读写（扫描定位 id，不认列位）
 │  ├─ report.mjs               日报拼装与合并（按 id 整条替换）+ 界面要的字段拆解
 │  ├─ covers.mjs               封面缓存（B站 x/web-interface/view → covers/<BV>.jpg）
+│  ├─ workspace-link.mjs       值班轮会话落盘即挂进工作区（盯目录 + attachSession）
 │  ├─ charter.mjs              章程取件 + 把设置页的值讲给模型听
 │  ├─ duty.mjs                 profile 铺设、overlay 生成、dsh/node 解析、spawn
 │  ├─ service.mjs              宿主这一头：状态、跑一轮、调度、写口
@@ -167,6 +168,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 ├─ headless-overlay.yml     每一轮重写的 overlay
 ├─ .venv/                   Python 环境（uv 建，装 mcp / bilibili-api / Pillow / qrcode）
 ├─ creds/bili-credential.json
+├─ archive/                  旧插件搬过来的历史（legacy-out/ 旧日报、digest/ 月度归档，只留档不解析）
 ├─ dy/profile/              专用 Edge 的 user-data-dir（持久登录）
 └─ dy/control/
    ├─ host.json             宿主地址 + 令牌（桥靠它找回来）
@@ -181,6 +183,25 @@ bili 真正值钱的三件事，抖音一件都没有：
 - 目标是已存在的非空目录时先确认，不覆盖
 
 **首次启动**：从旧 `$DSH_HOME/bili-duty/` 做一次性幂等导入——`config.json` 字段按名迁移、`seen.md` 并入 `## B站` 节、`out/*.md` 不搬。导入完成写 `migrated-from: bili-duty`，此后不再读旧目录。**不覆写旧目录**，旧插件可以继续跑着对照。
+
+### 值班轮的会话归到哪个工作区
+
+值班轮是 `spawn(dsh … --profile caifeng-duty <prompt>)` 起的**独立进程**，只有 `cwd`、没有 `workspaceId`。而宿主的「会话属于哪个工作区」是 `workspace.json` 里的 `sessionIds` 数组，唯一的官方写法是 `WorkspaceEntity.attachSession()`；它只会被 `SessionService.create()`（从某个工作区发起）调到。⇒ 直接 spawn 出来的会话会落在「未分组」里。
+
+所以由宿主这一侧补一次记账（`lib/workspace-link.mjs`）：
+
+1. 那一轮 spawn 之前先记下 `sessions/<projectKey(cwd)>/` 下已有的会话 id
+2. 每 400ms 看一次这个目录，出现新 id 就 `ctx.get('workspaceRegistry').resolveByPath(cwd)` → `attachSession(id)`
+3. `cwd` 取 `workspaceDir`（空则数据目录）；目录建不出、或该路径还没登记成工作区，就安静地不挂
+4. `attachSession()` 自己会把关：会话头里的 `cwd` 与工作区 path 不严格相等就抛错，所以**不可能挂错**
+
+三条不做的事（都试过，都会坏）：
+
+- **不自己写 `workspace.json`**：`dsh-storage-json` 以内存态为准，应用在跑时外部改动会被下一次工作区操作覆盖
+- **不手拼 session 文件**：zstd 多帧格式的块头是 3 字节，读错一位就把整份日志写成只有头部（真机翻过车）
+- **不用 `--session-id` 接管**：headless 的 `assertAdoptable()` 会拦住带 `agent-preset/selected` 的会话
+
+> 界面上要看到效果，得让宿主重新加载插件（重启应用），再跑一轮。已经存在的老会话不会追溯归位——它们的 `header.cwd` 是创建时那个路径，改不回来。
 
 ---
 
@@ -378,6 +399,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
   // —— 运行环境（设置页自己写的，一般不用手改） ——
   "pythonPath": "",            // 空 = 还没装；点过"装 Python 环境"就自动填上
+  "workspaceDir": "",          // 值班轮在哪个目录里跑；空 = 数据目录（那边不会显示成工作区）
 
   // —— 显示：只决定入口挂不挂，不影响跑不跑 ——
   "showSidebar": true,         // 侧栏留个入口
