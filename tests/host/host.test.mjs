@@ -19,6 +19,7 @@ function makeCtx(home) {
   const commandList = []
   const routeList = []
   const effects = []
+  const injected = []
   const services = new Map()
   services.set('dshHomePath', (seg) => join(home, seg))
 
@@ -27,6 +28,7 @@ function makeCtx(home) {
     commandList,
     routeList,
     effects,
+    injected,
     services,
     get: (k) => services.get(k),
     set: (k, v) => services.set(k, v),
@@ -63,6 +65,20 @@ function makeCtx(home) {
       describe: () => [],
       update: () => {},
     },
+    // 宿主是 cordis：`ctx.inject([...], cb)` 开子 fiber，服务就位后才跑 cb。
+    // 这里立刻用假服务调一次，并把注入过的名字记下来给用例断言。
+    inject(names, cb) {
+      injected.push([...names])
+      const child = {
+        workspaceRegistry: services.get('workspaceRegistry'),
+        get: (k) => services.get(k),
+        set: (k, v) => services.set(k, v),
+        effect: (fn) => { const c = fn(); effects.push({ label: 'inject-child', cleanup: c }); return () => c?.() },
+      }
+      const cleanup = cb(child)
+      effects.push({ label: `inject:${names.join(',')}`, cleanup })
+      return () => { try { cleanup?.() } catch { /* ignore */ } }
+    },
   }
 }
 
@@ -93,6 +109,28 @@ test('apply 把三条口子都接上了：工具、命令、路由', async () =>
     assert.deepEqual(Object.keys(svc).sort(), ['config', 'run', 'status'])
 
     // 卸载时定时器要停（否则进程退不掉）
+    for (const e of ctx.effects) if (typeof e.cleanup === 'function') e.cleanup()
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('apply 用 ctx.inject 开一个 workspaceRegistry 子 fiber（主 ctx 上取不到它）', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'caifeng-host-'))
+  try {
+    const ctx = makeCtx(home)
+    // 主 ctx 的 inject 里没有它 —— 这正是「对账跑了却一次没生效」的根因
+    assert.equal(ctx.get('workspaceRegistry'), undefined)
+    const ws = {
+      sessionIds: [],
+      record: { title: '采风值班' },
+      resolveByPath: async () => ws,
+      attachSession: async () => {},
+      detachSession: async () => {},
+    }
+    ctx.set('workspaceRegistry', ws)
+    apply(ctx, DEFAULTS)
+    assert.deepEqual(ctx.injected, [['workspaceRegistry']])
     for (const e of ctx.effects) if (typeof e.cleanup === 'function') e.cleanup()
   } finally {
     await rm(home, { recursive: true, force: true })

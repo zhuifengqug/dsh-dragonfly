@@ -458,36 +458,23 @@ export function apply(ctx, config = {}) {
     return () => service.stopTimer()
   }, 'caifeng: scheduler')
 
-  // ── 工作区对账（开机一次，起不来就退避重试）──────────────────────────────
+  // ── 工作区对账（服务就位后跑一次）────────────────────────────────────────
   // 会话记账只在「从工作区发起」或「我们那一轮认领」时才改；插件重装、应用升级、
   // 那一轮异常退出都会留下空档。开机补一次，界面才不会看到一堆没归处的会话。
-  // 拿不到 registry 说明工作区服务还没起来 —— 那就在几十秒内退避再试，别死等也别放弃。
-  ctx.effect(() => {
-    let stopped = false
-    let timer = null
-    let delay = 1000
-    let tries = 0
-    const attempt = () => {
-      if (stopped) return
-      service.reconcileWorkspace()
-        .then((r) => {
-          if (stopped) return
-          if (r.ok) return
-          if (r.reason !== 'no-registry') { log(`工作区对账跳过：${r.reason}`); return }
-          if (tries >= 8) return
-          tries += 1
-          delay = Math.min(delay * 2, 30_000)
-          timer = setTimeout(attempt, delay)
-          timer.unref?.()
-        })
-        .catch((e) => { if (!stopped) log(`工作区对账出错（不影响用）：${e?.message || e}`) })
-    }
-    attempt()
-    return () => {
-      stopped = true
-      if (timer) clearTimeout(timer)
-    }
-  }, 'caifeng: workspace reconcile')
+  //
+  // ⚠️ 必须走 `ctx.inject([...])` 拿子 fiber：cordis 的 `ctx.get(name)` 只在本 fiber
+  //    **inject 过**的服务里查（`Fiber._store` 按 `Object.keys(this.inject)` 预填，
+  //    `strict:false` 只放宽激活态校验、不扩大可见范围）。我们的 inject 里没有
+  //    workspaceRegistry，所以在主 ctx 上它恒为 undefined —— 之前那段"退避重试"
+  //    就是这么空转了 8 次、一个日志都没留下的。
+  //    子 fiber 还会自己等：服务不在就一直 pending，不会让插件卡住。
+  ctx.inject(['workspaceRegistry'], (wsCtx) => {
+    service.setWorkspaceContext(wsCtx)
+    service.reconcileWorkspace()
+      .then((r) => { if (!r.ok) log(`工作区对账跳过：${r.reason}`) })
+      .catch((e) => log(`工作区对账出错（不影响用）：${e?.message || e}`))
+    return () => service.setWorkspaceContext(null)
+  })
 
   // 卸载时只断 CDP，不关浏览器 —— 登录态要留着，下次还要接着用
   ctx.effect(() => () => { dyHost.close().catch(() => {}) }, 'caifeng: dy close')

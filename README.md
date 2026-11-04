@@ -83,6 +83,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 │  ├─ report.mjs               日报拼装与合并（按 id 整条替换）+ 界面要的字段拆解
 │  ├─ covers.mjs               封面缓存（B站 x/web-interface/view → covers/<BV>.jpg）
 │  ├─ workspace-link.mjs       会话归工作区（盯新会话 + 开机对账 attach/detach）
+│  ├─ duty-session.mjs        一条会话用两天（duty-session.json 记 id 与起始日）
 │  ├─ charter.mjs              章程取件 + 把设置页的值讲给模型听
 │  ├─ duty.mjs                 profile 铺设、overlay 生成、dsh/node 解析、spawn
 │  ├─ service.mjs              宿主这一头：状态、跑一轮、调度、写口
@@ -161,6 +162,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 ├─ charter.sha256           章程指纹
 ├─ duty.log                 值班日志（超过 512KB 滚成 .1）
 ├─ run-lock.json            运行锁（10 分钟过期，fail-open）
+├─ duty-session.json        当前那条值班会话的 id 与起始日（两天一换，见 §5「一条会话用两天」）
 ├─ comments.md              评论台账（发了什么、rpid 是多少）
 ├─ verify-state.json        评论复核的记账（7 天内核过的跳过）
 ├─ qrcode_login.png         B站登录二维码（设置页摆出来用）
@@ -193,24 +195,38 @@ bili 真正值钱的三件事，抖音一件都没有：
 **跑的那一轮——盯着新会话**
 
 1. 那一轮 spawn 之前先记下 `sessions/<projectKey(cwd)>/` 下已有的会话 id
-2. 每 400ms 看一次这个目录，出现新 id 就 `ctx.get('workspaceRegistry').resolveByPath(cwd)` → `attachSession(id)`
+2. 每 400ms 看一次这个目录，出现新 id 就 `pickRegistry(ctx).resolveByPath(cwd)` → `attachSession(id)`
 3. `cwd` 取 `workspaceDir`（空则数据目录）；目录建不出、或该路径还没登记成工作区，就安静地不挂
 4. `attachSession()` 自己会把关：会话头里的 `cwd` 与工作区 path 不严格相等就抛错，所以**不可能挂错**
 
+> ⚠️ **取这个服务必须用子 fiber**：`apply()` 里是 `ctx.inject(['workspaceRegistry'], (wsCtx) => …)`，把 `wsCtx` 交给 `service.setWorkspaceContext()`。cordis 的 `ctx.get(name)` 只在本 fiber **`inject` 过**的服务里查（`Fiber._store` 按 `Object.keys(this.inject)` 预填），`strict: false` 只放宽激活态校验、**不扩大可见范围**。插件的 `inject` 只有 `webServer/tools/settings/commands`，所以在主 ctx 上 `get('workspaceRegistry')` 恒为 `undefined` —— 对账会一路走 `no-registry`、一个日志都不留（真机就是这么白等了一天）。子 fiber 还有个好处：服务不在就一直 pending，不会把插件卡住。
+
 **开机那一趟——一次对账（`reconcileWorkspace`）**
 
-只靠上面那条不够：它只在「那一轮正在跑」的窗口里看着，插件重装、应用升级、那一轮异常退出都会留下「目录里有会话、记账里没有」的空档。所以 `apply()` 里还有一个 `ctx.effect`，插件起来时对一次账：
+只靠上面那条不够：它只在「那一轮正在跑」的窗口里看着，插件重装、应用升级、那一轮异常退出都会留下「目录里有会话、记账里没有」的空档。所以 `ctx.inject` 的子 fiber 一挂上就跑一次对账：
 
 - `live = listSessionIds(sessions/<projectKey(cwd)>/, cwd)`
 - `missing = live − ws.sessionIds` 逐个 `attachSession()`；`dead = ws.sessionIds − live` 逐个 `detachSession()`
-- 已经对上的一个字节都不写（宿主 `mutate()` 有 `unchangedSentinel`，无变化时不落盘、不发事件）
-- `workspaceRegistry` 还没起来（`no-registry`）就退避重试：1s 起、每次翻倍、上限 30s、最多 8 次；其他原因只记一行日志
+- 已经对上的一个字节都不写（宿主 `mutate()` 有 `unchangedSentinel`，无变化时不落盘、不发事件），但**日志照样写一行**「磁盘 N 个 / 记账 M 个 → 补进 X、摘掉 Y」——「什么都没做」和「做了 0 件事」在日志里必须分得开
+- 没有 `workspaceRegistry`（headless 那种宿主）就返回 `no-registry`、只记一行，不重试不空转
+
+### 一条会话用两天（`lib/duty-session.mjs`）
+
+不这么干的话每跑一轮工作区里就多一条，一晚上十几条。规则很简单：
+
+- `<家目录>/duty-session.json` 记着 `{ id, startedOn }`（`startedOn` 是北京时间的日历天）
+- 每轮开跑前 `pickDutySession()`：文件还在、`startedOn` 距今 < 2 天 ⇒ 带 `--session-id <id>` 接着写；否则当它过期、开新的
+- 换过工作区目录、或会话文件被删 ⇒ 目录/文件对不上，同样当过期（`--session-id` 会整轮失败，不能硬接）
+- 带 `--session-id` 跑挂了（`assertAdoptable` 拦、cwd 不符、会话被占）⇒ 去掉参数**重跑一次**并记「接不上旧的会话，另起一条重跑」，别让整轮白跑
+- 新建出来那条由上面的 watcher 认领、并写进 `duty-session.json`，从今天开始算第一天
+
+所以工作区里是一条条攒着的，每条盖两天，越早的排得越靠下 —— **一条都不删、一条都不离开工作区**。
 
 三条不做的事（都试过，都会坏）：
 
 - **不自己写 `workspace.json`**：`dsh-storage-json` 以内存态为准，应用在跑时外部改动会被下一次工作区操作覆盖
 - **不手拼 session 文件**：zstd 多帧格式的块头是 3 字节，读错一位就把整份日志写成只有头部（真机翻过车）
-- **不用 `--session-id` 接管**：headless 的 `assertAdoptable()` 会拦住带 `agent-preset/selected` 的会话
+- **不硬改 `header.cwd` 搬家**：`assertStoredIdentity()` 会用头部 cwd 反推应有路径，与文件实际位置不一致就判 `corrupt session log`
 
 > 界面上要看到效果，得让宿主重新加载插件（重启应用）。开机对账会把「目录里已经躺着、但没记账」的会话（比如插件装好之前跑的那几轮）一并补进来；但**躺在别的 cwd 目录下的会话补不了** —— 它们的 `header.cwd` 是创建时那个路径，改不回来（硬改会撞 `assertStoredIdentity` 的路径校验，真机翻过车）。
 
@@ -759,6 +775,8 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 界面上直接露出 `**档位**：` `**为什么值得**：` 这类原始标记 | 前端把正文整段 `pre-wrap` 出来 | `lib/report.mjs` 的 `entryDetail()` 把 `why` / `quote` / `url` 拆成字段，前端只渲染字段 |
 | 关掉「侧栏入口」后还留着一个点不开的按钮 | 做成渲染空壳，槽位其实还挂着 | 开关要**真注销** `sidebar.panellist` / `conversation.view`，重新打开再注册 |
 | 值班轮的会话全落在「未分组」里，怎么等都进不去工作区 | 会话的工作区归属靠 `attachSession()`，而它只被 `SessionService.create()`（从工作区发起）调到；CLI spawn 只有 cwd | 宿主盯 `sessions/<projectKey(cwd)>/`，新会话一落盘就 `resolveByPath` + `attachSession`（`lib/workspace-link.mjs`） |
+| 认领代码写好了、日志里却连一行都没有，工作区一条没多 | 主 ctx 上 `ctx.get('workspaceRegistry')` 恒为 `undefined`：cordis 的 `get()` 只查本 fiber `inject` 过的服务（`Fiber._store` 按 `Object.keys(this.inject)` 预填，`strict:false` 不扩大可见范围） | 改成 `ctx.inject(['workspaceRegistry'], (wsCtx) => …)` 开子 fiber，用子 fiber 的 ctx 去取；对账**无条件**写一行日志，「没跑」与「跑了但 0 变化」才分得开 |
+| 每跑一轮工作区就多一条会话，一晚上十几条 | 值班轮每轮都是新 spawn，没有会话复用 | `lib/duty-session.mjs` 记 `{id, startedOn}`，两天内带 `--session-id` 接着写；过期/文件没了/换了目录就开新的，接不上就重跑一次 |
 | 上述认领上线了，界面上还是没归位 | 认领只在「那一轮跑着」的窗口里看着；插件重装/升级/那一轮异常退出留下的会话永远补不回来 | 开机再对一次账：`reconcileWorkspace()` 补缺、摘死（`detachSession()`），已对上的零写入 |
 | 插件一加载，值班轮连 spawn 都没到就整条崩 | `watchNewSession()` 里 `unref` 打在了恒为 null 的旧变量上（`deadline` vs `deadlineTimer`），默认路径必抛 `Cannot read properties of null (reading 'unref')` | 定时器句柄只留一个变量名；测试里补一条**默认 `unref: true`** 的用例（原来所有用例都传 `unref: false`，正好把这条盖住了） |
 | 外部改 `workspace.json` 当时看着生效，一会儿又变回去了 | `dsh-storage-json` 的 single-unit **以内存态为准**，整文件 tmp+rename 重发 | 别写文件；走 `attachSession()`，它同时改内存与磁盘 |
@@ -791,7 +809,7 @@ POST /api/caifeng/run
 单测与语法检查：
 
 ```powershell
-npm test          # 198 条
+npm test          # 209 条
 npm run check:syntax
 ```
 

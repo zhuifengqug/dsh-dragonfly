@@ -22,7 +22,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import {
-  attachToWorkspace, listSessionIds, projectKey, reconcileWorkspace, sessionDir, sessionsRoot, watchNewSession,
+  attachToWorkspace, listSessionIds, pickRegistry, projectKey, reconcileWorkspace, sessionDir, sessionsRoot, watchNewSession,
 } from '../../lib/workspace-link.mjs'
 
 /** 造一个假的 sessions 根：每个 id 铺成 `<root>/<projectKey>/<id>/session.v4.jsonl.zstd` */
@@ -171,7 +171,7 @@ test('reconcileWorkspace：目录里多出来的补进去，记账里悬空的�
   assert.deepEqual(calls, [['attach', 'session-new'], ['detach', 'session-gone']])
 })
 
-test('reconcileWorkspace：已经对上账时一次写都不发', async () => {
+test('reconcileWorkspace：已经对上账时一次写都不发（但日志照写一行）', async () => {
   let writes = 0
   const ws = {
     sessionIds: ['session-alive'],
@@ -180,8 +180,25 @@ test('reconcileWorkspace：已经对上账时一次写都不发', async () => {
     detachSession: async () => { writes += 1 },
   }
   const ctx = { get: () => ({ resolveByPath: async () => ws }) }
-  assert.deepEqual(await reconcileWorkspace(ctx, 'D:\\x', ['session-alive']), { ok: true, attached: 0, detached: 0 })
+  const lines = []
+  assert.deepEqual(
+    await reconcileWorkspace(ctx, 'D:\\x', ['session-alive'], (l) => lines.push(l)),
+    { ok: true, attached: 0, detached: 0 },
+  )
   assert.equal(writes, 0)
+  // 「什么都没做」和「做了 0 件事」必须在日志里分得开 —— 上一轮就是栽在这儿
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /磁盘 1 个 \/ 记账 1 个 → 补进 0、摘掉 0/)
+})
+
+test('pickRegistry：注入过的子 fiber 直接挂在 ctx 上也能取到', async () => {
+  // 主 ctx 的 get() 恒拿不到（inject 里没有它）；子 fiber 的 ctx 会把服务挂成属性
+  const ws = { sessionIds: [], record: { title: '采风值班' }, attachSession: async () => {} }
+  const childCtx = { workspaceRegistry: { resolveByPath: async () => ws }, get: () => undefined }
+  assert.equal(pickRegistry(childCtx), childCtx.workspaceRegistry)
+  assert.deepEqual(await attachToWorkspace(childCtx, 'D:\\x', 'session-9'), { ok: true })
+  assert.equal(pickRegistry({ get: () => undefined }), null)
+  assert.equal(pickRegistry(null), null)
 })
 
 test('reconcileWorkspace：没有注册表 / 没有工作区都安静返回', async () => {
