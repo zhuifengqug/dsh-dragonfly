@@ -465,7 +465,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 | **信源与额度** | 两个信源开关、每天几条、抖音分钟、每轮细看几条、时段 |
 | **怎么挑** | 关键词、排除词、排序、翻页、人格 |
 | **互动与产出**（折起） | 自动评论（开关/每轮/长度/@谁）、回复评论、私信、收藏夹、单片笔记、日报详略 |
-| **运行环境**（折起） | **模型下拉**、**存放位置**、B站登录、抖音浏览器、诊断、Python 环境 |
+| **运行环境**（折起） | **模型下拉**、**存放位置**、**值班轮的工作区**、B站登录、抖音浏览器、诊断、Python 环境 |
 | **显示** | 侧栏留个入口、会话顶部挂「今天」 |
 
 「显示」那两个开关是**真挂/真摘槽位**，不是渲染空壳：关掉侧栏就把 `sidebar.panellist` 那条注销掉，关掉会话顶部就把 `conversation.view` 注销掉。空壳会留一个点不开的按钮，比没有更糟。主区页（`main`）与设置页（`settings.section`）**不随这两个开关消失** —— 它们是「怎么进来」的两条腿。
@@ -484,16 +484,31 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 今日已收 3 条 · 额度 5 · 下次 14:00
 今天 | 设置
 ────────────────────────────────────  ← 这条以上固定，以下滚
-[全部 3] [B站 3] [抖音 0]        [11-03] [11-02]
+[全部 3] [B站 3] [抖音 0]
+[所有档位] [值得看 2] [可以看 1] [不值当 0]
+[11-03] [11-02]
 [封面] 我让 AI 组了个队…              值得看
        …
 ```
+
+三排筛子顺序固定是**信源 → 档位 → 日期**：先定"看谁家的"，再定"看什么档"，最后才选哪天。档位那一排只列**这一天真出现过的档位**（没出现过的摆上去只会让人白点一下），选中态各有各的颜色（值得看绿 / 可以看琥珀 / 不值当红），一眼能看出跟信源那排是两种筛子。
 
 外壳是 `height:100%` 的 flex 列，表头（状态带 + 页签）`flex:none`，正文区 `flex:1;min-height:0;overflow-y:auto` —— **页面自己滚，不是整块被顶出去**（照群策 `client.js` 那套写法）。
 
 `main` 是 **keyed** 槽：`register({ name:'main', key:'caifeng' }, …)`。它自己不会出现在侧栏——**必须同时注册 `sidebar.panellist`（`{ id:'caifeng', order:100, label:'采风' }`）**，侧栏那个图标才是进主区页的唯一入口。两者 id/key 都是 `caifeng`，配对关系，缺一个就进不去。侧栏图标是**内联 SVG 罗盘**（16px、`currentColor`、1.5 描边），不是 emoji —— emoji 在那一列单色图标里显得脏。
 
 会话顶部还有一块 `conversation.view`（`{ id:'caifeng-today', order:20, scope:'session', label:'采风' }`），内容就是「今天」的精简版；它替换掉了原来 bili 插件挂的「刷过的视频」。
+
+这一块**要铺满**，跟上游那个「轨迹」视图一样占满整片 area 并自己滚 —— 但宿主给的那层 `viewArea` 在 `data-phase=active` 时是 `flex:1 0 auto; min-height:auto`（高跟着内容长），子元素写 `height:100%` 等于循环依赖，撑不起来（实测被算成 3611px、内层 `scrollable:false`）。所以反过来改**父级**：
+
+```css
+/* 用结构选择器，不认宿主那几个哈希类名（升级换了哈希也还命中） */
+[data-slot="conversation.session"] > div:has(> [data-slot="conversation.view"] > [data-cf-conv]){
+  flex:1 1 0;min-height:0;overflow:hidden;}
+[data-cf-conv]{flex:1 1 0;min-height:0;height:auto;max-height:none;display:flex;flex-direction:column;}
+```
+
+改后实测 `596×1100`、内层 `clientHeight 595 / scrollHeight 5108`、`scrollable:true`。会话区矮，chip 得钉住（`[data-cf-conv] [data-cf-sticky]{position:sticky;top:0}`），不然翻两条就滚没了。会话区宽，页面的 `max-width` 也要放开（`[data-cf-conv] [data-cf-page]{max-width:none}`），不然右边空一大片。
 
 设置页走 `settings.section`（`{ id:'caifeng', order:60, label:'采风' }`）。四处注册各自 try/catch，缺一个其他照起。
 
@@ -732,6 +747,10 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 侧栏那个 emoji 图标跟旁边一圈单色线性图标格格不入 | `🧭` 是彩色 emoji，不吃 `currentColor` | 内联 SVG：16px、`stroke="currentColor"`、1.5 描边 |
 | 界面上直接露出 `**档位**：` `**为什么值得**：` 这类原始标记 | 前端把正文整段 `pre-wrap` 出来 | `lib/report.mjs` 的 `entryDetail()` 把 `why` / `quote` / `url` 拆成字段，前端只渲染字段 |
 | 关掉「侧栏入口」后还留着一个点不开的按钮 | 做成渲染空壳，槽位其实还挂着 | 开关要**真注销** `sidebar.panellist` / `conversation.view`，重新打开再注册 |
+| 值班轮的会话全落在「未分组」里，怎么等都进不去工作区 | 会话的工作区归属靠 `attachSession()`，而它只被 `SessionService.create()`（从工作区发起）调到；CLI spawn 只有 cwd | 宿主盯 `sessions/<projectKey(cwd)>/`，新会话一落盘就 `resolveByPath` + `attachSession`（`lib/workspace-link.mjs`） |
+| 外部改 `workspace.json` 当时看着生效，一会儿又变回去了 | `dsh-storage-json` 的 single-unit **以内存态为准**，整文件 tmp+rename 重发 | 别写文件；走 `attachSession()`，它同时改内存与磁盘 |
+| 手拼会话日志，搬完只剩一个头部 | zstd 多帧的块头是 **3 字节**（`readUIntLE(offset,3)`），读成 4 字节就把整个文件当一帧 | 不碰字节。真要切帧就照 `dsh-session-persistence-jsonl` 的 `scanZstdFrames` 逐字段抄 |
+| 会话顶部那块采风只露三条、下面一片空白 | 宿主 `.viewArea` 在 `data-phase=active` 时是 `flex:1 0 auto;min-height:auto`，子元素 `height:100%` 撑不起来 | 用 `:has()` 结构选择器改父级成 `flex:1 1 0;min-height:0`，外壳再 `flex:1` 铺满、自己滚 |
 
 ---
 
@@ -759,7 +778,7 @@ POST /api/caifeng/run
 单测与语法检查：
 
 ```powershell
-npm test          # 98 条
+npm test          # 192 条
 npm run check:syntax
 ```
 

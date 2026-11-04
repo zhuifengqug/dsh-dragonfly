@@ -244,7 +244,7 @@ test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
   }
 })
 
-test('诊断逐项：五样都列出来，缺的那样要带「点哪儿」', async () => {
+test('诊断逐项：六样都列出来，缺的那样要带「点哪儿」', async () => {
   const home = await mkdtemp(join(tmpdir(), 'caifeng-diag-'))
   const realDshHome = process.env.DSH_HOME
   // 把 DSH_HOME 指到临时目录：否则"从旧插件导入"会把真机上 bili-duty 的配置与凭据搬进来，
@@ -256,7 +256,7 @@ test('诊断逐项：五样都列出来，缺的那样要带「点哪儿」', as
 
     assert.equal(d.ok, true)
     assert.ok(Array.isArray(d.checks))
-    assert.deepEqual(d.checks.map((c) => c.key), ['python', 'bili', 'douyin', 'model', 'lastRun'])
+    assert.deepEqual(d.checks.map((c) => c.key), ['python', 'bili', 'douyin', 'model', 'workspace', 'lastRun'])
 
     for (const c of d.checks) {
       assert.equal(typeof c.label, 'string')
@@ -277,6 +277,49 @@ test('诊断逐项：五样都列出来，缺的那样要带「点哪儿」', as
 
     // 还没跑过的时候也要有一句话，不能是空字符串
     assert.match(byKey.lastRun.line, /还没跑过/)
+
+    // 假 ctx 里没有 workspaceRegistry ⇒ 这一项要说不清是哪一种，并给出下一步；
+    // 会话"掉进未分组"时用户没法自己看出是路径没填还是宿主没这服务，所以这句必须有
+    assert.equal(byKey.workspace.ok, false)
+    assert.match(byKey.workspace.line, /工作区/)
+    assert.ok(byKey.workspace.hint.length > 0, 'workspace 不对时必须给下一步')
+  } finally {
+    if (realDshHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = realDshHome
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('诊断的工作区项：登记过就说标题与条数，没登记就说点哪儿去加', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'caifeng-diag-ws-'))
+  const realDshHome = process.env.DSH_HOME
+  process.env.DSH_HOME = join(home, 'dsh')
+  try {
+    const { ctx, service } = makeService(home)
+    const cwd = join(home, '值班')
+    ctx.set('workspaceRegistry', {
+      resolveByPath: async () => ({
+        record: { title: '采风值班' },
+        sessionIds: ['session-a', 'session-b'],
+        attachSession: async () => {},
+      }),
+    })
+    // 目录得先存在，dutyCwd 才会认这个绝对路径
+    await mkdir(cwd, { recursive: true })
+    await service.setConfig({ workspaceDir: cwd })
+
+    const reg = (d) => d.checks.find((c) => c.key === 'workspace')
+    const hit = reg(await service.diagnose())
+    assert.equal(hit.ok, true)
+    assert.match(hit.line, /采风值班/)
+    assert.match(hit.line, /2 个会话/)
+
+    // 换成"这个目录还没登记成工作区"：不能装没事，要让人知道去左侧加一下
+    ctx.set('workspaceRegistry', { resolveByPath: async () => undefined })
+    const miss = reg(await service.diagnose())
+    assert.equal(miss.ok, false)
+    assert.match(miss.line, /还没有登记成工作区/)
+    assert.match(miss.hint, /工作区/)
   } finally {
     if (realDshHome === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = realDshHome
