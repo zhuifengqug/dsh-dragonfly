@@ -22,7 +22,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import {
-  attachToWorkspace, listSessionIds, projectKey, sessionsRoot, watchNewSession,
+  attachToWorkspace, listSessionIds, projectKey, reconcileWorkspace, sessionDir, sessionsRoot, watchNewSession,
 } from '../../lib/workspace-link.mjs'
 
 /** 造一个假的 sessions 根：每个 id 铺成 `<root>/<projectKey>/<id>/session.v4.jsonl.zstd` */
@@ -147,4 +147,62 @@ test('attachToWorkspace：真的调 attachSession，抛错时把原因带回来'
   const r = await attachToWorkspace(ctx2, 'D:\\x', 'session-3')
   assert.equal(r.ok, false)
   assert.match(r.reason, /cwd differs/)
+})
+
+test('sessionDir：把 cwd 编码成那一层目录名', () => {
+  assert.equal(
+    sessionDir('D:\\DSHData\\home\\sessions', 'D:\\dsh-workspaces\\采风值班'),
+    join('D:\\DSHData\\home\\sessions', '--D-dsh-workspaces-~91C7~98CE~503C~73ED--'),
+  )
+  assert.equal(sessionDir('', 'D:\\x'), '')
+})
+
+test('reconcileWorkspace：目录里多出来的补进去，记账里悬空的摘掉，其余不动', async () => {
+  const calls = []
+  const ws = {
+    sessionIds: ['session-gone', 'session-alive'],
+    record: { title: '采风值班' },
+    attachSession: async (id) => { calls.push(['attach', id]) },
+    detachSession: async (id) => { calls.push(['detach', id]) },
+  }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  const r = await reconcileWorkspace(ctx, 'D:\\x', ['session-alive', 'session-new'])
+  assert.deepEqual(r, { ok: true, attached: 1, detached: 1 })
+  assert.deepEqual(calls, [['attach', 'session-new'], ['detach', 'session-gone']])
+})
+
+test('reconcileWorkspace：已经对上账时一次写都不发', async () => {
+  let writes = 0
+  const ws = {
+    sessionIds: ['session-alive'],
+    record: { title: '采风值班' },
+    attachSession: async () => { writes += 1 },
+    detachSession: async () => { writes += 1 },
+  }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  assert.deepEqual(await reconcileWorkspace(ctx, 'D:\\x', ['session-alive']), { ok: true, attached: 0, detached: 0 })
+  assert.equal(writes, 0)
+})
+
+test('reconcileWorkspace：没有注册表 / 没有工作区都安静返回', async () => {
+  assert.deepEqual(await reconcileWorkspace({ get: () => undefined }, 'D:\\x', []), { ok: false, reason: 'no-registry' })
+  const empty = { get: () => ({ resolveByPath: async () => undefined }) }
+  assert.deepEqual(await reconcileWorkspace(empty, 'D:\\x', []), { ok: false, reason: 'no-workspace' })
+})
+
+test('reconcileWorkspace：单个会话挂不上不影响其他会话', async () => {
+  const okd = []
+  const ws = {
+    sessionIds: [],
+    record: {},
+    attachSession: async (id) => {
+      if (id === 'session-bad') throw new Error('header not ready')
+      okd.push(id)
+    },
+    detachSession: async () => {},
+  }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  const r = await reconcileWorkspace(ctx, 'D:\\x', ['session-bad', 'session-good'])
+  assert.deepEqual(r, { ok: true, attached: 1, detached: 0 })
+  assert.deepEqual(okd, ['session-good'])
 })

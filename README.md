@@ -82,7 +82,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 │  ├─ seen.mjs                 判重表读写（扫描定位 id，不认列位）
 │  ├─ report.mjs               日报拼装与合并（按 id 整条替换）+ 界面要的字段拆解
 │  ├─ covers.mjs               封面缓存（B站 x/web-interface/view → covers/<BV>.jpg）
-│  ├─ workspace-link.mjs       值班轮会话落盘即挂进工作区（盯目录 + attachSession）
+│  ├─ workspace-link.mjs       会话归工作区（盯新会话 + 开机对账 attach/detach）
 │  ├─ charter.mjs              章程取件 + 把设置页的值讲给模型听
 │  ├─ duty.mjs                 profile 铺设、overlay 生成、dsh/node 解析、spawn
 │  ├─ service.mjs              宿主这一头：状态、跑一轮、调度、写口
@@ -188,12 +188,23 @@ bili 真正值钱的三件事，抖音一件都没有：
 
 值班轮是 `spawn(dsh … --profile caifeng-duty <prompt>)` 起的**独立进程**，只有 `cwd`、没有 `workspaceId`。而宿主的「会话属于哪个工作区」是 `workspace.json` 里的 `sessionIds` 数组，唯一的官方写法是 `WorkspaceEntity.attachSession()`；它只会被 `SessionService.create()`（从某个工作区发起）调到。⇒ 直接 spawn 出来的会话会落在「未分组」里。
 
-所以由宿主这一侧补一次记账（`lib/workspace-link.mjs`）：
+所以由宿主这一侧补记账，分两条路（`lib/workspace-link.mjs`）：
+
+**跑的那一轮——盯着新会话**
 
 1. 那一轮 spawn 之前先记下 `sessions/<projectKey(cwd)>/` 下已有的会话 id
 2. 每 400ms 看一次这个目录，出现新 id 就 `ctx.get('workspaceRegistry').resolveByPath(cwd)` → `attachSession(id)`
 3. `cwd` 取 `workspaceDir`（空则数据目录）；目录建不出、或该路径还没登记成工作区，就安静地不挂
 4. `attachSession()` 自己会把关：会话头里的 `cwd` 与工作区 path 不严格相等就抛错，所以**不可能挂错**
+
+**开机那一趟——一次对账（`reconcileWorkspace`）**
+
+只靠上面那条不够：它只在「那一轮正在跑」的窗口里看着，插件重装、应用升级、那一轮异常退出都会留下「目录里有会话、记账里没有」的空档。所以 `apply()` 里还有一个 `ctx.effect`，插件起来时对一次账：
+
+- `live = listSessionIds(sessions/<projectKey(cwd)>/, cwd)`
+- `missing = live − ws.sessionIds` 逐个 `attachSession()`；`dead = ws.sessionIds − live` 逐个 `detachSession()`
+- 已经对上的一个字节都不写（宿主 `mutate()` 有 `unchangedSentinel`，无变化时不落盘、不发事件）
+- `workspaceRegistry` 还没起来（`no-registry`）就退避重试：1s 起、每次翻倍、上限 30s、最多 8 次；其他原因只记一行日志
 
 三条不做的事（都试过，都会坏）：
 
@@ -201,7 +212,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 - **不手拼 session 文件**：zstd 多帧格式的块头是 3 字节，读错一位就把整份日志写成只有头部（真机翻过车）
 - **不用 `--session-id` 接管**：headless 的 `assertAdoptable()` 会拦住带 `agent-preset/selected` 的会话
 
-> 界面上要看到效果，得让宿主重新加载插件（重启应用），再跑一轮。已经存在的老会话不会追溯归位——它们的 `header.cwd` 是创建时那个路径，改不回来。
+> 界面上要看到效果，得让宿主重新加载插件（重启应用）。开机对账会把「目录里已经躺着、但没记账」的会话（比如插件装好之前跑的那几轮）一并补进来；但**躺在别的 cwd 目录下的会话补不了** —— 它们的 `header.cwd` 是创建时那个路径，改不回来（硬改会撞 `assertStoredIdentity` 的路径校验，真机翻过车）。
 
 ---
 
@@ -748,6 +759,8 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 界面上直接露出 `**档位**：` `**为什么值得**：` 这类原始标记 | 前端把正文整段 `pre-wrap` 出来 | `lib/report.mjs` 的 `entryDetail()` 把 `why` / `quote` / `url` 拆成字段，前端只渲染字段 |
 | 关掉「侧栏入口」后还留着一个点不开的按钮 | 做成渲染空壳，槽位其实还挂着 | 开关要**真注销** `sidebar.panellist` / `conversation.view`，重新打开再注册 |
 | 值班轮的会话全落在「未分组」里，怎么等都进不去工作区 | 会话的工作区归属靠 `attachSession()`，而它只被 `SessionService.create()`（从工作区发起）调到；CLI spawn 只有 cwd | 宿主盯 `sessions/<projectKey(cwd)>/`，新会话一落盘就 `resolveByPath` + `attachSession`（`lib/workspace-link.mjs`） |
+| 上述认领上线了，界面上还是没归位 | 认领只在「那一轮跑着」的窗口里看着；插件重装/升级/那一轮异常退出留下的会话永远补不回来 | 开机再对一次账：`reconcileWorkspace()` 补缺、摘死（`detachSession()`），已对上的零写入 |
+| 插件一加载，值班轮连 spawn 都没到就整条崩 | `watchNewSession()` 里 `unref` 打在了恒为 null 的旧变量上（`deadline` vs `deadlineTimer`），默认路径必抛 `Cannot read properties of null (reading 'unref')` | 定时器句柄只留一个变量名；测试里补一条**默认 `unref: true`** 的用例（原来所有用例都传 `unref: false`，正好把这条盖住了） |
 | 外部改 `workspace.json` 当时看着生效，一会儿又变回去了 | `dsh-storage-json` 的 single-unit **以内存态为准**，整文件 tmp+rename 重发 | 别写文件；走 `attachSession()`，它同时改内存与磁盘 |
 | 手拼会话日志，搬完只剩一个头部 | zstd 多帧的块头是 **3 字节**（`readUIntLE(offset,3)`），读成 4 字节就把整个文件当一帧 | 不碰字节。真要切帧就照 `dsh-session-persistence-jsonl` 的 `scanZstdFrames` 逐字段抄 |
 | 会话顶部那块采风只露三条、下面一片空白 | 宿主 `.viewArea` 在 `data-phase=active` 时是 `flex:1 0 auto;min-height:auto`，子元素 `height:100%` 撑不起来 | 用 `:has()` 结构选择器改父级成 `flex:1 1 0;min-height:0`，外壳再 `flex:1` 铺满、自己滚 |
@@ -778,7 +791,7 @@ POST /api/caifeng/run
 单测与语法检查：
 
 ```powershell
-npm test          # 192 条
+npm test          # 198 条
 npm run check:syntax
 ```
 
