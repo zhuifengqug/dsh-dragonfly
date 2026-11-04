@@ -103,6 +103,17 @@ test('watchNewSession：没根目录 / 超时都会安静收场', async () => {
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
+test('watchNewSession：默认 unref 时不会去碰空的定时器句柄', async () => {
+  // 回归：曾经把 unref 打在漏声明的变量上，默认路径（unref=true）一构造就抛
+  // 「Cannot read properties of null (reading 'unref')」，整个 run() 还没 spawn 就倒了。
+  const root = mkdtempSync(join(tmpdir(), 'cf-ws-'))
+  try {
+    const w = watchNewSession({ root, cwd: 'D:\\x', pollMs: 20, timeoutMs: 50, onAppear: () => true })
+    w.stop()
+    assert.equal(await w.done, null)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
 test('attachToWorkspace：没有注册表 / 没有工作区时安静返回', async () => {
   assert.deepEqual(await attachToWorkspace({ get: () => undefined }, 'D:\\x', 'session-1'), {
     ok: false, reason: 'no-registry',
