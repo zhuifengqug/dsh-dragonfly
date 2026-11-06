@@ -1,13 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="虫珀·蜻蛉">
   <rect width="96" height="96" rx="18" fill="#10171a"/>
-  <!-- 罗盘外圈 -->
-  <circle cx="48" cy="48" r="30" fill="none" stroke="#54b89b" stroke-width="3"/>
-  <!-- 内圈刻度 -->
-  <circle cx="48" cy="48" r="20" fill="none" stroke="#d9b663" stroke-width="2" stroke-dasharray="2 5"/>
-  <!-- 四个方位 -->
-  <path d="M48 12v8M48 76v8M12 48h8M76 48h8" stroke="#54b89b" stroke-width="3" stroke-linecap="round"/>
-  <!-- 指针：风化成一缕，指向东北 -->
-  <path d="M48 48 63 33 53 53Z" fill="#df5e4e"/>
-  <path d="M48 48 33 63 43 43Z" fill="#8fa6b2"/>
-  <circle cx="48" cy="48" r="4" fill="#10171a" stroke="#d9b663" stroke-width="2"/>
+  <circle cx="42" cy="23" r="4.5" fill="#df5e4e"/>
+  <circle cx="54" cy="23" r="4.5" fill="#df5e4e"/>
+  <circle cx="48" cy="27" r="6" fill="#d9b663"/>
+  <g fill="#54b89b" opacity="0.55" stroke="#54b89b" stroke-width="1.5">
+    <path d="M45 40 C32 30 18 30 14 38 C20 45 35 47 45 45 Z"/>
+    <path d="M51 40 C64 30 78 30 82 38 C76 45 61 47 51 45 Z"/>
+  </g>
+  <g fill="#d9b663" opacity="0.5" stroke="#d9b663" stroke-width="1.5">
+    <path d="M45 47 C34 55 24 59 19 57 C25 51 37 48 45 48 Z"/>
+    <path d="M51 47 C62 55 72 59 77 57 C71 51 59 48 51 48 Z"/>
+  </g>
+  <ellipse cx="48" cy="44" rx="5" ry="10" fill="#54b89b"/>
+  <path d="M48 50 V72" stroke="#54b89b" stroke-width="6" stroke-linecap="round"/>
+  <path d="M44 57 H52 M44 63 H52 M44 69 H52" stroke="#10171a" stroke-width="2" opacity="0.6"/>
 </svg>
