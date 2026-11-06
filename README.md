@@ -1,6 +1,6 @@
-# 天枢·采风
+# 虫珀·蜻蛉
 
-**采风**：旧时派人出去搜集风物，回来呈报。这个插件干的就是这件事——每天替你去 B站和抖音转一圈，把值得看的挑出来，写成一份日报。
+**蜻蛉**：旧时派人出去搜集风物，回来呈报。这个插件干的就是这件事——每天替你去 B站和抖音转一圈，把值得看的挑出来，写成一份日报。
 
 替代现在的 `dsh-bili-scroll` + `dsh-douyin-browser-local` 两个插件。不是把两边合并，是**取零件重造**：以 bili 的骨架（值班章程 + 受限 profile + 日报契约）为准，抖音降级成第二个信源。
 
@@ -10,20 +10,20 @@
 
 | 项 | 值 |
 |---|---|
-| 中文名 | 天枢·采风 |
-| 插件名 | `tianshu-caifeng` |
-| coordinate | `zhuifengqug/tianshu-caifeng` |
-| 包名 | `@zhuifengqug/dsh-tianshu-caifeng` |
-| loader id | `zhuifengqug-tianshu-caifeng` |
-| 命令 | `/caifeng` |
-| 服务 | `ctx.tianshuCaifeng` |
-| 工具前缀 | `caifeng_` |
-| 目录 | `天枢/天枢-采风`（与 `天枢-蜂群` 同级） |
-| 家目录 | 默认 `$DSH_HOME/tianshu-caifeng/`，**可在设置页改** |
-| 设置页标题 | 采风 |
-| 主区页标题 | 采风 |
+| 中文名 | 虫珀·蜻蛉 |
+| 插件名 | `dragonfly` |
+| coordinate | `zhuifengqug/dragonfly` |
+| 包名 | `@zhuifengqug/dsh-dragonfly` |
+| loader id | `zhuifengqug-dragonfly` |
+| 命令 | `/dragonfly` |
+| 服务 | `ctx.dragonfly` |
+| 工具前缀 | `dragonfly_` |
+| 目录 | `虫珀/蜻蛉`（与 `虫珀-蜂群` 同级） |
+| 家目录 | 默认 `$DSH_HOME/dragonfly/`，**可在设置页改** |
+| 设置页标题 | 蜻蛉 |
+| 主区页标题 | 蜻蛉 |
 
-**为什么是"采风"**：与 `群策` 同属古典双字，系列感一致；"风"既指风物也暗合信息流；UI 文案读起来都顺——今天采了什么 / 采风范围 / 采风时间 / 采风额度 / 采风日报。备选过的 `甄录`（强调筛选）语义更硬，但文案会僵；`择片` 太直白，撑不起系列。
+**为什么是"蜻蛉"**：与 `群策` 同属古典双字，系列感一致；"风"既指风物也暗合信息流；UI 文案读起来都顺——今天采了什么 / 蜻蛉范围 / 蜻蛉时间 / 蜻蛉额度 / 蜻蛉日报。备选过的 `甄录`（强调筛选）语义更硬，但文案会僵；`择片` 太直白，撑不起系列。
 
 ---
 
@@ -59,7 +59,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 ## 4. 包结构
 
 ```
-天枢-采风/
+蜻蛉/
 ├─ package.json
 ├─ index.js                    host 入口：配置、路由、工具注册、调度、抖音宿主这一头
 ├─ client.js                   设置页 + 主区页（一套视觉，两边样式都不复用）
@@ -70,7 +70,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 ├─ prompts/
 │  └─ duty.md                  值班章程（B站/抖音合写，人格内联）
 ├─ profile-template/
-│  └─ caifeng-duty/
+│  └─ dragonfly-duty/
 │     ├─ cordis.patch.yml      受限 profile（照 bili 的边界改 id）
 │     ├─ cordis.yml
 │     └─ package.json          ⚠️ bundles 必须写在 dsh.profile.bundles 里
@@ -89,7 +89,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 │  ├─ service.mjs              宿主这一头：状态、跑一轮、调度、写口
 │  ├─ dy-host.mjs              抖音宿主侧：令牌握手、分钟数闸门、动作分派
 │  ├─ mcp.mjs                  极简 MCP stdio 客户端（宿主侧调试与验证用）
-│  ├─ models.mjs               采风模型的候选列表与解析
+│  ├─ models.mjs               蜻蛉模型的候选列表与解析
 │  ├─ login.mjs                B站扫码登录
 │  ├─ verify.mjs               评论复核
 │  ├─ diagnose.mjs             把日志尾巴翻成一句人话
@@ -101,7 +101,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 │  ├─ browser-host.mjs         专用 Edge 启动/连接、playwright 解析、端口挑选
 │  ├─ tools.mjs                4 个抖音动作的定义与失败码
 │  └─ mcp-bridge.mjs           极简 MCP 服务：把 duty 轮的工具调用转回宿主
-├─ vendor/caifeng-bili-mcp/
+├─ vendor/dragonfly-bili-mcp/
 │  ├─ server.py                B站 MCP 服务（9 个工具，白名单在注册期过滤）
 │  ├─ requirements.txt
 │  └─ LICENSE
@@ -113,11 +113,11 @@ bili 真正值钱的三件事，抖音一件都没有：
    └─ mcp/                     两条 MCP 的清单与白名单
 ```
 
-`package.json` 要点（照 `天枢-蜂群` 的规范）：
+`package.json` 要点（照 `虫珀-蜂群` 的规范）：
 
 ```jsonc
 {
-  "name": "@zhuifengqug/dsh-tianshu-caifeng",
+  "name": "@zhuifengqug/dsh-dragonfly",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -188,7 +188,7 @@ bili 真正值钱的三件事，抖音一件都没有：
 
 ### 值班轮的会话归到哪个工作区
 
-值班轮是 `spawn(dsh … --profile caifeng-duty <prompt>)` 起的**独立进程**，只有 `cwd`、没有 `workspaceId`。而宿主的「会话属于哪个工作区」是 `workspace.json` 里的 `sessionIds` 数组，唯一的官方写法是 `WorkspaceEntity.attachSession()`；它只会被 `SessionService.create()`（从某个工作区发起）调到。⇒ 直接 spawn 出来的会话会落在「未分组」里。
+值班轮是 `spawn(dsh … --profile dragonfly-duty <prompt>)` 起的**独立进程**，只有 `cwd`、没有 `workspaceId`。而宿主的「会话属于哪个工作区」是 `workspace.json` 里的 `sessionIds` 数组，唯一的官方写法是 `WorkspaceEntity.attachSession()`；它只会被 `SessionService.create()`（从某个工作区发起）调到。⇒ 直接 spawn 出来的会话会落在「未分组」里。
 
 所以由宿主这一侧补记账，分两条路（`lib/workspace-link.mjs`）：
 
@@ -234,30 +234,30 @@ bili 真正值钱的三件事，抖音一件都没有：
 
 ## 6. 工具契约
 
-16 个工具，前缀统一 `caifeng_`。
+16 个工具，前缀统一 `dragonfly_`。
 
-B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng-bili-mcp/server.py`），抖音那 4 个在 **Node 薄桥**里（`dy/mcp-bridge.mjs`），三个 `status`/`run`/`config` 在宿主进程里。duty 那一轮只看得见前两条 MCP 挂进来的 13 个。
+B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/dragonfly-bili-mcp/server.py`），抖音那 4 个在 **Node 薄桥**里（`dy/mcp-bridge.mjs`），三个 `status`/`run`/`config` 在宿主进程里。duty 那一轮只看得见前两条 MCP 挂进来的 13 个。
 
 ### B站（Python MCP）
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `caifeng_bili_search` | `keyword`、`num=10`、`order="totalrank"`、`page=1` | `{ keyword, count, videos:[{ bvid, aid, title, author, play, review, danmaku, duration, pubdate, description }] }` |
-| `caifeng_bili_subtitle` | `bvid` | `{ bvid, title, language, segments, text }`；无字幕 `{ ok:false, reason:'no-subtitle' }` |
-| `caifeng_bili_comments` | `bvid`、`num=30` | `{ count, comments:[{ rpid, user, content, like, reply_count, time }] }` |
-| `caifeng_bili_frames` | `bvid`、`num=3`（1-6）、`at=[秒]` | 图片附件 + `{ ok, duration, covered_sec, tile:'480x270', frames:[{ index, want_sec, got_sec, kb }], failed, note }` |
-| `caifeng_bili_favorites` | `folder=""`、`days=7` | `{ folders:[{ id, title, count }], items:[{ bvid, title, author, favedAt }] }` |
-| `caifeng_bili_reply` | `bvid`、`text`、`rpid=0`、`root=0` | `{ ok, sent, rpid }`；`autoComment=false` 时拒绝，除非 `force:true`（本人当场授权）；被语感闸门拦下回 `{ ok:false, sent:false, blocked_by:'style', error }` |
-| `caifeng_bili_dm` | `action: 'list'\|'read'\|'reply'`、`uid=0`、`text=""` | `reply` 受 `dmMode` 闸门；超 500 字符接口回 **code 21007** |
+| `dragonfly_bili_search` | `keyword`、`num=10`、`order="totalrank"`、`page=1` | `{ keyword, count, videos:[{ bvid, aid, title, author, play, review, danmaku, duration, pubdate, description }] }` |
+| `dragonfly_bili_subtitle` | `bvid` | `{ bvid, title, language, segments, text }`；无字幕 `{ ok:false, reason:'no-subtitle' }` |
+| `dragonfly_bili_comments` | `bvid`、`num=30` | `{ count, comments:[{ rpid, user, content, like, reply_count, time }] }` |
+| `dragonfly_bili_frames` | `bvid`、`num=3`（1-6）、`at=[秒]` | 图片附件 + `{ ok, duration, covered_sec, tile:'480x270', frames:[{ index, want_sec, got_sec, kb }], failed, note }` |
+| `dragonfly_bili_favorites` | `folder=""`、`days=7` | `{ folders:[{ id, title, count }], items:[{ bvid, title, author, favedAt }] }` |
+| `dragonfly_bili_reply` | `bvid`、`text`、`rpid=0`、`root=0` | `{ ok, sent, rpid }`；`autoComment=false` 时拒绝，除非 `force:true`（本人当场授权）；被语感闸门拦下回 `{ ok:false, sent:false, blocked_by:'style', error }` |
+| `dragonfly_bili_dm` | `action: 'list'\|'read'\|'reply'`、`uid=0`、`text=""` | `reply` 受 `dmMode` 闸门；超 500 字符接口回 **code 21007** |
 
 ### 抖音（Node 桥 → 宿主）
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `caifeng_dy_open` | `query?` | `{ ok, query, url, state }`；无 `query` 打开推荐流，有 `query` 走搜索 |
-| `caifeng_dy_state` | — | `{ ok, state:{ pageKind, video:{id,author,title,time,duration,paused,viewport}, searchResults, loginRequired, verificationRequired } }` |
-| `caifeng_dy_next` | — | 换下一条后的状态；换不动回 `{ ok:false, reason:<reasonCode>, hint, state, before }`，不假装成功 |
-| `caifeng_dy_frames` | `seconds=3`（1-10） | 图片附件 + `{ ok, videoId, duration }` |
+| `dragonfly_dy_open` | `query?` | `{ ok, query, url, state }`；无 `query` 打开推荐流，有 `query` 走搜索 |
+| `dragonfly_dy_state` | — | `{ ok, state:{ pageKind, video:{id,author,title,time,duration,paused,viewport}, searchResults, loginRequired, verificationRequired } }` |
+| `dragonfly_dy_next` | — | 换下一条后的状态；换不动回 `{ ok:false, reason:<reasonCode>, hint, state, before }`，不假装成功 |
+| `dragonfly_dy_frames` | `seconds=3`（1-10） | 图片附件 + `{ ok, videoId, duration }` |
 
 `pageKind` 只有 `video` / `search` / `live-preview` / `unknown` 四种。`unknown` 就是「我看不出来」，那一轮该跳过，**不许猜**。
 
@@ -265,8 +265,8 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `caifeng_report_write` | `date?`、`entries`（JSON **字符串**）、`skipped`（JSON **字符串**）、`note?` | `{ ok, path, added:[id], replaced:[id], notes:[单片笔记路径] }`；同一天多次调用按 `id` 整条替换；`detail` 存在且 `notesEnabled` 时另写 `reports/<id>.md`；`note` 给了就**整段替换**上一轮写的「总结」 |
-| `caifeng_seen` | `check`（JSON 字符串数组）、`mark`（JSON 字符串数组） | `{ seen:[id], unknown:[id], marked, total }`；一次调用同时能查能记 |
+| `dragonfly_report_write` | `date?`、`entries`（JSON **字符串**）、`skipped`（JSON **字符串**）、`note?` | `{ ok, path, added:[id], replaced:[id], notes:[单片笔记路径] }`；同一天多次调用按 `id` 整条替换；`detail` 存在且 `notesEnabled` 时另写 `reports/<id>.md`；`note` 给了就**整段替换**上一轮写的「总结」 |
+| `dragonfly_seen` | `check`（JSON 字符串数组）、`mark`（JSON 字符串数组） | `{ seen:[id], unknown:[id], marked, total }`；一次调用同时能查能记 |
 
 `entries` / `skipped` / `check` / `mark` 都是 **JSON 字符串**而不是数组 —— MCP 的参数是字符串，模型得自己 `JSON.stringify`。
 
@@ -274,15 +274,15 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `caifeng_status` | — | 今日条数/额度/下次窗口/存放位置/两信源可用性/运行环境 |
-| `caifeng_run` | — | 立刻跑一轮（不等窗口）；额度与冷却照走 |
-| `caifeng_config` | `patch` | 改配置并回读（只认 §9 字段） |
+| `dragonfly_status` | — | 今日条数/额度/下次窗口/存放位置/两信源可用性/运行环境 |
+| `dragonfly_run` | — | 立刻跑一轮（不等窗口）；额度与冷却照走 |
+| `dragonfly_config` | `patch` | 改配置并回读（只认 §9 字段） |
 
 **登录、装 Python、诊断这类一次性运维不进工具**，全在设置页里做——它们需要人看二维码、需要进度条，做成工具只会污染 duty 会话的工具箱。
 
 **duty 会话白名单**：B站 7 + 抖音 4 + `report_write` + `seen` = 13 个。`status`/`run`/`config` 只给用户自己的会话。
 
-**白名单是在「注册期」生效的，不是「调用期」**：`server.py` 的 `@tool()` 装饰器读 `CAIFENG_BILI_TOOLS`，名单外的函数连 `tools/list` 里都不出现；`mcp-bridge.mjs` 同理读 `CAIFENG_TOOLS`。所以那一轮不是「有个工具但调不动」，而是**根本没见过这个工具**。
+**白名单是在「注册期」生效的，不是「调用期」**：`server.py` 的 `@tool()` 装饰器读 `DRAGONFLY_BILI_TOOLS`，名单外的函数连 `tools/list` 里都不出现；`mcp-bridge.mjs` 同理读 `DRAGONFLY_TOOLS`。所以那一轮不是「有个工具但调不动」，而是**根本没见过这个工具**。
 
 ---
 
@@ -332,7 +332,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 - 「因无字幕跳过 N 条」N=0 也要写出来 —— 空是一种结果，不是失败
 - 「私信」节只在 `dmEnabled` 且有新消息时出现
 
-**私信这一节只写「收到了什么」**，不写「发了什么」：采风的产出只落日报，从不往任何人的私信里发东西（`dmMode=auto` 也只是在日报里记下回了什么，投递目标永远是本人）。
+**私信这一节只写「收到了什么」**，不写「发了什么」：蜻蛉的产出只落日报，从不往任何人的私信里发东西（`dmMode=auto` 也只是在日报里记下回了什么，投递目标永远是本人）。
 
 ### 宿主自己追加的小节
 
@@ -372,7 +372,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 ```
 
 - 状态只有 `收` / `弃`。同一天同一条再记一次是**替换**（弃可以升成收，不会出现两行）
-- `caifeng_seen` 一次调用同时能查能记：`check` 问「这几条见过没」、`mark` 往回记
+- `dragonfly_seen` 一次调用同时能查能记：`check` 问「这几条见过没」、`mark` 往回记
 - **解析靠扫描定位 id，不认列位**——人手改过的表格（id 挪到第一格、多加一列）照样能读，读不出来就跳过不瞎猜
 - 超过 30 天的行自动滚进 `seen/<YYYY-MM>.md`，主表只留近期
 - 跨信源 id 不会撞（BV 前缀 vs 纯数字），但仍分节，方便人肉查
@@ -403,13 +403,13 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
   "personaPrompt": "",         // 人格，注入章程；空则用内置默认
 
   // —— 产出 ——
-  "outputDir": "",             // 空 = 默认 $DSH_HOME/tianshu-caifeng
+  "outputDir": "",             // 空 = 默认 $DSH_HOME/dragonfly
   "reportLevel": "full",       // full | brief
   "notesEnabled": true,        // 单片笔记
   "favoritesEnabled": true,    // 收藏夹也入日报
   "favoritesDays": 7,
 
-  // —— 采风用哪个模型 ——
+  // —— 蜻蛉用哪个模型 ——
   "model": { "provider": "", "model": "" },   // 空 = 跟随 DSH 当前默认
 
   // —— B站互动 ——
@@ -444,7 +444,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 | `draft` | 读，并把想回的话写进日报当草稿，但**绝不调用 reply** |
 | `auto` | 允许回。设置页会先单独确认一次；一条最多 4~5 句（超 500 字符接口回 code 21007）；转账、点链接、加好友一律不执行 |
 
-`dmEnabled=false` 连读都不读。**采风从不往任何人私信里发日报**——唯一产出是 `<家目录>/out/<日期>.md`。
+`dmEnabled=false` 连读都不读。**蜻蛉从不往任何人私信里发日报**——唯一产出是 `<家目录>/out/<日期>.md`。
 
 **模型的候选列表从哪来**：优先读 DSH 已配置的 provider/model 注册面（`ctx.llm.listProviders()` / `listModels()`）；读不到就退化成手填 `provider` + `model` 两个文本框。不做硬编码列表。
 
@@ -477,7 +477,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 - 信源 chip 上带条数（只数「值得看」），点一下就把下面过滤掉
 - 日期 chip 取最近 7 天；只选信源不选日期时看今天
-- 每条：**封面缩略图**（点开去 B站，`<img>` 走 `/api/caifeng/cover?bvid=`，拿不到就把位置让出来）+ 标题（点开去原视频）+ 档位 chip + 「为什么值得」正文 + 左竖线引文
+- 每条：**封面缩略图**（点开去 B站，`<img>` 走 `/api/dragonfly/cover?bvid=`，拿不到就把位置让出来）+ 标题（点开去原视频）+ 档位 chip + 「为什么值得」正文 + 左竖线引文
 - 抖音的条目没有封面（那个站没有公开接口），单列铺满
 - 「扫过没收的」「因缺证据跳过」这些按节列在下面，也按信源过滤
 - 空态：今天还没跑 → "还没采过，[现在就跑]"
@@ -507,7 +507,7 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 ### 主区页（`main` 槽）
 
 ```
-采风                                    [现在就跑]
+蜻蛉                                    [现在就跑]
 今日已收 3 条 · 额度 5 · 下次 14:00
 今天 | 设置
 ────────────────────────────────────  ← 这条以上固定，以下滚
@@ -522,9 +522,9 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 外壳是 `height:100%` 的 flex 列，表头（状态带 + 页签）`flex:none`，正文区 `flex:1;min-height:0;overflow-y:auto` —— **页面自己滚，不是整块被顶出去**（照群策 `client.js` 那套写法）。
 
-`main` 是 **keyed** 槽：`register({ name:'main', key:'caifeng' }, …)`。它自己不会出现在侧栏——**必须同时注册 `sidebar.panellist`（`{ id:'caifeng', order:100, label:'采风' }`）**，侧栏那个图标才是进主区页的唯一入口。两者 id/key 都是 `caifeng`，配对关系，缺一个就进不去。侧栏图标是**内联 SVG 罗盘**（16px、`currentColor`、1.5 描边），不是 emoji —— emoji 在那一列单色图标里显得脏。
+`main` 是 **keyed** 槽：`register({ name:'main', key:'dragonfly' }, …)`。它自己不会出现在侧栏——**必须同时注册 `sidebar.panellist`（`{ id:'dragonfly', order:100, label:'蜻蛉' }`）**，侧栏那个图标才是进主区页的唯一入口。两者 id/key 都是 `dragonfly`，配对关系，缺一个就进不去。侧栏图标是**内联 SVG 罗盘**（16px、`currentColor`、1.5 描边），不是 emoji —— emoji 在那一列单色图标里显得脏。
 
-会话顶部还有一块 `conversation.view`（`{ id:'caifeng-today', order:20, scope:'session', label:'采风' }`），内容就是「今天」的精简版；它替换掉了原来 bili 插件挂的「刷过的视频」。
+会话顶部还有一块 `conversation.view`（`{ id:'dragonfly-today', order:20, scope:'session', label:'蜻蛉' }`），内容就是「今天」的精简版；它替换掉了原来 bili 插件挂的「刷过的视频」。
 
 这一块**要铺满**，跟上游那个「轨迹」视图一样占满整片 area 并自己滚 —— 但宿主给的那层 `viewArea` 在 `data-phase=active` 时是 `flex:1 0 auto; min-height:auto`（高跟着内容长），子元素写 `height:100%` 等于循环依赖，撑不起来（实测被算成 3611px、内层 `scrollable:false`）。所以反过来改**父级**：
 
@@ -537,9 +537,9 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 改后实测 `596×1100`、内层 `clientHeight 595 / scrollHeight 5108`、`scrollable:true`。会话区矮，chip 得钉住（`[data-cf-conv] [data-cf-sticky]{position:sticky;top:0}`），不然翻两条就滚没了。会话区宽，页面的 `max-width` 也要放开（`[data-cf-conv] [data-cf-page]{max-width:none}`），不然右边空一大片。
 
-设置页走 `settings.section`（`{ id:'caifeng', order:60, label:'采风' }`）。四处注册各自 try/catch，缺一个其他照起。
+设置页走 `settings.section`（`{ id:'dragonfly', order:60, label:'蜻蛉' }`）。四处注册各自 try/catch，缺一个其他照起。
 
-数据面：客户端只读 `/api/caifeng/*` 这几张口子 —— `status` `config`(GET/POST) `run` `report` `days` `cover` `models` `python`(GET/POST) `login/start` `login/poll` `whoami` `diagnose` `review` `import` `move-home` `dy-reset`。抖音桥走 `/api/caifeng/dy/<action>`，那条不走同源判断，走 `x-caifeng-token`。
+数据面：客户端只读 `/api/dragonfly/*` 这几张口子 —— `status` `config`(GET/POST) `run` `report` `days` `cover` `models` `python`(GET/POST) `login/start` `login/poll` `whoami` `diagnose` `review` `import` `move-home` `dy-reset`。抖音桥走 `/api/dragonfly/dy/<action>`，那条不走同源判断，走 `x-dragonfly-token`。
 
 `cover` 只服务 B站：先看 `<家目录>/covers/<BV号>.jpg`，没有就去 `x/web-interface/view` 取 `data.pic` 再下图存起来（4MB 上限、8 秒超时）。拿不到就 404，界面把图藏掉，不留破图。
 
@@ -547,15 +547,15 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 ## 11. 安全边界
 
-照搬 bili 的做法，只改 id：`profile-template/caifeng-duty/cordis.patch.yml` 建一个专用 profile。
+照搬 bili 的做法，只改 id：`profile-template/dragonfly-duty/cordis.patch.yml` 建一个专用 profile。
 
 ```jsonc
-// profile-template/caifeng-duty/package.json
+// profile-template/dragonfly-duty/package.json
 // ⚠️ bundles 必须写在 dsh.profile 下面。写成顶层 "bundles" 会被静默忽略，
 //    这个 profile 一个 entry 都组不起来 —— 表现出来是「所有 MCP 都 pending
 //    (waiting for service: tools)」，而报错信息里只说某个 entry not found。
 {
-  "name": "dsh-profile-caifeng-duty",
+  "name": "dsh-profile-dragonfly-duty",
   "private": true,
   "dependencies": {},
   "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-headless"] } }
@@ -574,14 +574,14 @@ B站那 7 个和本地 2 个写口在 **Python MCP 服务**里（`vendor/caifeng
 
 | overlay 条目 | 是什么 | 谁起 | 什么时候不起 |
 |---|---|---|---|
-| `mcp-caifeng-bili` | `@deepseek-ai/dsh-mcp-client` + Python stdio 服务 | `<家>/.venv/Scripts/python.exe <家>/mcp_server.py` | 没装 Python 环境、或 `mcp_server.py` 没铺到家里 |
-| `mcp-caifeng-dy` | `@deepseek-ai/dsh-mcp-client` + Node 薄桥 | `node dy/mcp-bridge.mjs` | 抖音桥文件不在包里 |
+| `mcp-dragonfly-bili` | `@deepseek-ai/dsh-mcp-client` + Python stdio 服务 | `<家>/.venv/Scripts/python.exe <家>/mcp_server.py` | 没装 Python 环境、或 `mcp_server.py` 没铺到家里 |
+| `mcp-dragonfly-dy` | `@deepseek-ai/dsh-mcp-client` + Node 薄桥 | `node dy/mcp-bridge.mjs` | 抖音桥文件不在包里 |
 
 两条各自独立：一条挂了另一条照跑，那一轮降级成单信源并在日报里写明。两条都没插上时 `run()` 直接回 `no_source`（带上是哪条为什么没起来），不白跑一轮。
 
 overlay 每次运行重写，还负责三件它必须做的事：补开 `credentials`/`authorization`/`deepseek-account`（headless bundle 自带 patch 把它们关了）、按当前模型写 `agent-default-model`、所有路径按 YAML 单引号转义并在 Windows 上把 `\` 换成 `/`。
 
-值班会话的工具面 = §6 的 13 个 `caifeng_*`。它能读网、能写日报，不能碰文件系统、不能起子代理、不能装东西。
+值班会话的工具面 = §6 的 13 个 `dragonfly_*`。它能读网、能写日报，不能碰文件系统、不能起子代理、不能装东西。
 
 ---
 
@@ -617,13 +617,13 @@ overlay 每次运行重写，还负责三件它必须做的事：补开 `credent
 ```
 宿主进程                               duty 子进程（受限 profile）
 ─────────────────────────              ────────────────────────────
-BrowserController                      mcp-caifeng-dy（Node 薄桥）
-  专用 Edge（dy/profile）                  │  只有 4 个 caifeng_dy_* 工具
-  readPageState / switchVideo / capture    │  白名单由 CAIFENG_TOOLS 决定
+BrowserController                      mcp-dragonfly-dy（Node 薄桥）
+  专用 Edge（dy/profile）                  │  只有 4 个 dragonfly_dy_* 工具
+  readPageState / switchVideo / capture    │  白名单由 DRAGONFLY_TOOLS 决定
         ▲                                  │
-        │  POST /api/caifeng/dy/<action>   │
+        │  POST /api/dragonfly/dy/<action>   │
         └──────────────────────────────────┘
-           带 x-caifeng-token（令牌在
+           带 x-dragonfly-token（令牌在
            <家>/dy/control/host.json）
 ```
 
@@ -654,11 +654,11 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 
 ### 第一步：骨架 + B站
 
-交付：包骨架、命名清单、`lib/`、`vendor/caifeng-bili-mcp/`、设置页两页签 + 主区页、`prompts/duty.md`、受限 profile 模板、B站 7 个工具 + 本地 2 个 + 运维 3 个。
+交付：包骨架、命名清单、`lib/`、`vendor/dragonfly-bili-mcp/`、设置页两页签 + 主区页、`prompts/duty.md`、受限 profile 模板、B站 7 个工具 + 本地 2 个 + 运维 3 个。
 
 验收：
 
-1. 插件装上，设置页「采风」出现，两个页签都能开，主区出现「采风」页，无控制台报错
+1. 插件装上，设置页「蜻蛉」出现，两个页签都能开，主区出现「蜻蛉」页，无控制台报错
 2. 设置页能改模型（下拉有候选或手填可用）、能改存放位置（改完下一次运行生效）
 3. 点「现在就跑」走完一轮，`out/<今天>.md` 生成，读起来与旧 bili 日报同档（档位/为什么值得/我的一句话都在）
 4. 连跑两次，第二次判重生效，不重复收同一条
@@ -674,8 +674,8 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 验收：
 
 1. 设置页「运行环境」能看到抖音浏览器状态，点一次能打开并完成扫码登录
-2. 单独调 `caifeng_dy_state` 能读到当前视频的 id/作者/标题/时长
-3. `caifeng_dy_frames` 能拿到画面
+2. 单独调 `dragonfly_dy_state` 能读到当前视频的 id/作者/标题/时长
+3. `dragonfly_dy_frames` 能拿到画面
 4. 同一次值班里两个信源都有条目，日报里 `[B站]`/`[抖音]` 标签正确
 5. 判重表两个分节各自独立，跨信源不串
 6. 抖音每日分钟数用尽后自动停
@@ -693,19 +693,19 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 |---|---|---|
 | `lib/{state,login,verify,diagnose,uvfetch,hostdeps}.mjs` | bili `lib/` 同名 | 直接搬，改导入路径与家目录常量 |
 | `lib/mcp.mjs` | bili `lib/mcp.mjs` | 直接搬（宿主侧调试与验证用，duty 轮不用它） |
-| `vendor/caifeng-bili-mcp/server.py` | bili `vendor/bilibili-mcp/mcp_server.py` | 剪掉转写、弹幕、排行等，只留 9 个工具；白名单 env 改名；家目录改 `CAIFENG_HOME` |
-| `vendor/caifeng-bili-mcp/requirements.txt` | bili 同名 | 去掉 whisper 系依赖；`mcp` 必须锁 `<2` |
+| `vendor/dragonfly-bili-mcp/server.py` | bili `vendor/bilibili-mcp/mcp_server.py` | 剪掉转写、弹幕、排行等，只留 9 个工具；白名单 env 改名；家目录改 `DRAGONFLY_HOME` |
+| `vendor/dragonfly-bili-mcp/requirements.txt` | bili 同名 | 去掉 whisper 系依赖；`mcp` 必须锁 `<2` |
 | `bili/*.mjs` 七个 | bili `index.js` 里对应工具的实现 | **不搬成 JS**——那 7 个走 Python MCP，宿主侧没有对应文件 |
 | `lib/paths.mjs` | 新写 | 借鉴 douyin `runtime-paths.mjs` 的解析顺序，加可配置根 |
 | `lib/{seen,report,charter,config,clock,duty,service,dy-host,migrate,models}.mjs` | 新写 | 契约见 §5 §7 §8 §9 §11 |
-| `prompts/duty.md` | bili `prompts/duty.md` | **重写**：合并抖音信源、人格内联、工具名换成 `caifeng_*`、私信节改语义 |
-| `profile-template/caifeng-duty/*` | bili `profile-template/bili-duty/*` | 改 id 与白名单；**`package.json` 的 bundles 挪进 `dsh.profile`** |
+| `prompts/duty.md` | bili `prompts/duty.md` | **重写**：合并抖音信源、人格内联、工具名换成 `dragonfly_*`、私信节改语义 |
+| `profile-template/dragonfly-duty/*` | bili `profile-template/bili-duty/*` | 改 id 与白名单；**`package.json` 的 bundles 挪进 `dsh.profile`** |
 | `dy/core.mjs` | douyin `core.mjs` | 按 §12 删 |
 | `dy/browser-host.mjs` | douyin `browser-host.mjs` + `browser-launcher.mjs` + `runtime-paths.mjs` 三合一 | 加 playwright 多根解析、端口文件 |
 | `dy/tools.mjs` | douyin `tool-definitions.mjs` | 只留 4 个动作；失败一律结构化，不抛 |
 | `dy/mcp-bridge.mjs` | 新写 | 手写极简 MCP stdio 服务（不装 SDK），把工具调用转回宿主 |
 | `client.js` | 新写 | 只借 bili 的 CSS 结构思路，不复用样式 |
-| `lib/asr.py` `lib/favops.py` | bili `lib/` | **不搬**（无转写）；收藏夹逻辑并进 `server.py` 的 `caifeng_bili_favorites` |
+| `lib/asr.py` `lib/favops.py` | bili `lib/` | **不搬**（无转写）；收藏夹逻辑并进 `server.py` 的 `dragonfly_bili_favorites` |
 
 ---
 
@@ -714,7 +714,7 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 **风险**
 
 - **与上游脱钩**：bili 上游已到 2.4.0（本地是 2.3.1），分叉后不再自动跟进。可接受——上游的路线是"用 JS 重写、摆脱 Python"，与本插件目标不同
-- **抖音 DOM 变更**：`readPageState` 依赖 `[data-e2e="feed-active-video"]` 等选择器，抖音改版会失效。缓解：`caifeng_dy_state` 返回 `pageKind:'unknown'` 时明确报错，不猜
+- **抖音 DOM 变更**：`readPageState` 依赖 `[data-e2e="feed-active-video"]` 等选择器，抖音改版会失效。缓解：`dragonfly_dy_state` 返回 `pageKind:'unknown'` 时明确报错，不猜
 - **抖音登录态**：profile 一旦损坏就要重扫码。缓解：设置页给出"重置浏览器 profile"按钮，并说明会丢登录
 - **Python 依赖仍在**：B站的搜索/字幕/评论/回复走 Python 侧。砍了 ASR 之后不再需要 whisper 模型，装起来轻很多
 - **私信的对外发言风险**：`dmMode` 默认 `read`（只看不发）。改成 `auto` 前必须在设置页明确确认一次，并在日报里留发送对账
@@ -750,8 +750,8 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 症状 | 真因 | 修法 |
 |---|---|---|
 | 插件整个不激活，`invalid config: $.sources.bili volatile fields require a fixed object path without an enclosing volatile field` | 嵌套对象外层也标了 `.extra('volatile')` | 只标内层字段，`sources` / `model` 外层不标 |
-| `command "caifeng" input hint must not be empty`，插件不激活 | 命令传了 `input:{hint:''}` | 命令不吃参数就别传 `input` |
-| `cannot set property "tianshuCaifeng" without provide` | cordis 的 `set` 只能改已 provide 的服务 | 用 `ctx.provide(...)` |
+| `command "dragonfly" input hint must not be empty`，插件不激活 | 命令传了 `input:{hint:''}` | 命令不吃参数就别传 `input` |
+| `cannot set property "dragonfly" without provide` | cordis 的 `set` 只能改已 provide 的服务 | 用 `ctx.provide(...)` |
 | 配置读出来是 `"[object Object]"` | volatile 字段被宿主包成 `{get(){},[write]}` 引用对象 | `lib/config.mjs` 的 `unwrap()` 逐层脱壳，clamp 入口整体先脱 |
 | `notesEnabled` / `favoritesEnabled` / `dmEnabled` 明明是 true 却按 false 走 | `key in src` 判空会被 cordis 显式补的 `undefined` 骗过 | 改判 `!== undefined` |
 | 那一轮 exit 1，`命令行语法不正确` | 走 `dsh.cmd` 要 `shell:true`，多行中文章程被 cmd.exe 毁掉 | 优先解析 `@deepseek-ai/dsh/lib/bin.js` 用 node 跑；`.cmd` 只作最后兜底 |
@@ -781,7 +781,7 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 | 插件一加载，值班轮连 spawn 都没到就整条崩 | `watchNewSession()` 里 `unref` 打在了恒为 null 的旧变量上（`deadline` vs `deadlineTimer`），默认路径必抛 `Cannot read properties of null (reading 'unref')` | 定时器句柄只留一个变量名；测试里补一条**默认 `unref: true`** 的用例（原来所有用例都传 `unref: false`，正好把这条盖住了） |
 | 外部改 `workspace.json` 当时看着生效，一会儿又变回去了 | `dsh-storage-json` 的 single-unit **以内存态为准**，整文件 tmp+rename 重发 | 别写文件；走 `attachSession()`，它同时改内存与磁盘 |
 | 手拼会话日志，搬完只剩一个头部 | zstd 多帧的块头是 **3 字节**（`readUIntLE(offset,3)`），读成 4 字节就把整个文件当一帧 | 不碰字节。真要切帧就照 `dsh-session-persistence-jsonl` 的 `scanZstdFrames` 逐字段抄 |
-| 会话顶部那块采风只露三条、下面一片空白 | 宿主 `.viewArea` 在 `data-phase=active` 时是 `flex:1 0 auto;min-height:auto`，子元素 `height:100%` 撑不起来 | 用 `:has()` 结构选择器改父级成 `flex:1 1 0;min-height:0`，外壳再 `flex:1` 铺满、自己滚 |
+| 会话顶部那块蜻蛉只露三条、下面一片空白 | 宿主 `.viewArea` 在 `data-phase=active` 时是 `flex:1 0 auto;min-height:auto`，子元素 `height:100%` 撑不起来 | 用 `:has()` 结构选择器改父级成 `flex:1 1 0;min-height:0`，外壳再 `flex:1` 铺满、自己滚 |
 
 ---
 
@@ -789,21 +789,21 @@ BrowserController                      mcp-caifeng-dy（Node 薄桥）
 
 ```powershell
 # 1. 装进一个独立 profile（别动 desktop）
-cd $env:USERPROFILE\.dsh\profiles\caifeng-smoke   # 或自建：dependencies 里 link 到本仓
-dsh plugin --profile caifeng-smoke install
+cd $env:USERPROFILE\.dsh\profiles\dragonfly-smoke   # 或自建：dependencies 里 link 到本仓
+dsh plugin --profile dragonfly-smoke install
 
 # 2. 起服务，拿 token
-cmd /c set CAIFENG_DEBUG=1&& dsh --profile caifeng-smoke --no-open > tmp\smoke.log 2>&1
+cmd /c set DRAGONFLY_DEBUG=1&& dsh --profile dragonfly-smoke --no-open > tmp\smoke.log 2>&1
 # 从日志里找：dsh web: http://127.0.0.1:3080/?token=XXXX
 
 # 3. 先用 token 换 cookie（裸打 API 会 401「不允许的来路」）
-#    之后带这个 cookie 打 /api/caifeng/*
+#    之后带这个 cookie 打 /api/dragonfly/*
 
 # 4. 装 Python 环境（约 27 秒）
-POST /api/caifeng/python
+POST /api/dragonfly/python
 
 # 5. 跑一轮
-POST /api/caifeng/run
+POST /api/dragonfly/run
 ```
 
 单测与语法检查：

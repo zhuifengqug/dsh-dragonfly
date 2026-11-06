@@ -78,7 +78,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0))
 
 test('client.js 自注册的 id 就是包名', async () => {
   const { registration } = await loadClient()
-  assert.equal(registration.id, '@zhuifengqug/dsh-tianshu-caifeng')
+  assert.equal(registration.id, '@zhuifengqug/dsh-dragonfly')
   assert.equal(typeof registration.factory, 'function')
 })
 
@@ -107,10 +107,10 @@ test('会话顶部那块的 id / 顺序 / scope 是固定的', async () => {
   mod.apply(ctx)
 
   const conv = registrations.find((r) => r.options.name === 'conversation.view')
-  assert.equal(conv.options.id, 'caifeng-today')
+  assert.equal(conv.options.id, 'dragonfly-today')
   assert.equal(conv.options.order, 20)
   assert.equal(conv.options.scope, 'session')
-  assert.equal(conv.options.label, '采风')
+  assert.equal(conv.options.label, '蜻蛉')
 })
 
 test('主区页的 key 必须跟侧栏入口的 id 对上（否则进不去）', async () => {
@@ -123,10 +123,10 @@ test('主区页的 key 必须跟侧栏入口的 id 对上（否则进不去）',
   const side = registrations.find((r) => r.options.name === 'sidebar.panellist')
   const settings = registrations.find((r) => r.options.name === 'settings.section')
 
-  assert.equal(main.options.key, 'caifeng')
-  assert.equal(side.options.id, 'caifeng')
-  assert.equal(settings.options.id, 'caifeng')
-  assert.equal(side.options.label, '采风')
+  assert.equal(main.options.key, 'dragonfly')
+  assert.equal(side.options.id, 'dragonfly')
+  assert.equal(settings.options.id, 'dragonfly')
+  assert.equal(side.options.label, '蜻蛉')
 })
 
 test('没有 slots 服务时安静退出，不抛', async () => {

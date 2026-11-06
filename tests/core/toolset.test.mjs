@@ -33,7 +33,7 @@ test('评论双条件：开关 + 填了 @ 谁 —— 四种组合只有一种给
   ]
   for (const c of cases) {
     const c1 = cfg({ autoComment: c.autoComment, mentionName: c.mentionName })
-    const has = dutyToolset(c1).bili.includes('caifeng_bili_reply')
+    const has = dutyToolset(c1).bili.includes('dragonfly_bili_reply')
     assert.equal(has, c.expect, `${c.why}：reply ${c.expect ? '应该' : '不应该'}在名单里`)
     assert.equal(canComment(c1), c.expect, `${c.why}：canComment 要跟名单一致`)
   }
@@ -41,22 +41,22 @@ test('评论双条件：开关 + 填了 @ 谁 —— 四种组合只有一种给
 
 test('关掉评论时，名单里还得说清楚为什么没给', () => {
   const ts = dutyToolset(cfg({ autoComment: false }))
-  const why = ts.skipped.find((s) => s.tool === 'caifeng_bili_reply')
+  const why = ts.skipped.find((s) => s.tool === 'dragonfly_bili_reply')
   assert.ok(why, '应该留下一条跳过原因')
   assert.match(why.why, /关/)
 })
 
 test('私信关着时连 dc 工具都不给（不是"给了但嘱咐别用"）', () => {
   const ts = dutyToolset(cfg({ dmEnabled: false }))
-  assert.equal(ts.bili.includes('caifeng_bili_dm'), false)
-  assert.ok(ts.skipped.some((s) => s.tool === 'caifeng_bili_dm'))
+  assert.equal(ts.bili.includes('dragonfly_bili_dm'), false)
+  assert.ok(ts.skipped.some((s) => s.tool === 'dragonfly_bili_dm'))
 })
 
 test('收藏夹关着时不给 favorites，其余读工具照给', () => {
   const ts = dutyToolset(cfg({ favoritesEnabled: false }))
-  assert.equal(ts.bili.includes('caifeng_bili_favorites'), false)
-  assert.ok(ts.bili.includes('caifeng_bili_search'))
-  assert.ok(ts.bili.includes('caifeng_bili_subtitle'))
+  assert.equal(ts.bili.includes('dragonfly_bili_favorites'), false)
+  assert.ok(ts.bili.includes('dragonfly_bili_search'))
+  assert.ok(ts.bili.includes('dragonfly_bili_subtitle'))
 })
 
 test('B站 信源关着时一个 B站 工具都不给，本地写口仍然给', () => {

@@ -1,7 +1,7 @@
 {
-  "name": "@zhuifengqug/dsh-tianshu-caifeng",
+  "name": "@zhuifengqug/dsh-dragonfly",
   "version": "0.1.0",
-  "description": "天枢·采风：每天替你采一轮风 —— 挑出值得看的、写一份日报",
+  "description": "虫珀·蜻蛉：每天替你采一轮风 —— 挑出值得看的、写一份日报",
   "type": "module",
   "main": "index.js",
   "exports": {

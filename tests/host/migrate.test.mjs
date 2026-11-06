@@ -23,7 +23,7 @@ let root
 let oldHome
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'caifeng-migrate-'))
+  root = mkdtempSync(join(tmpdir(), 'dragonfly-migrate-'))
   oldHome = join(root, 'bili-duty')
   process.env.DSH_HOME = root
 })
@@ -60,7 +60,7 @@ const OLD_SEEN = [
 ].join('\n')
 
 test('旧目录不存在时安静跳过，不报错', () => {
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   const r = importFromBili(layout)
   assert.equal(r.ok, true)
   assert.equal(r.state, 'no-source')
@@ -69,7 +69,7 @@ test('旧目录不存在时安静跳过，不报错', () => {
 
 test('首次启动：配置与凭据搬过来，旧日报一份都不搬', () => {
   makeOld({ config: { perDay: 3, mentionName: '蚍蜉zzzz', headlessProfile: 'bili-duty-a6' }, seen: OLD_SEEN, credential: { sessdata: 'x' } })
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   const r = importFromBili(layout)
 
   assert.equal(r.state, 'imported')
@@ -85,7 +85,7 @@ test('首次启动：配置与凭据搬过来，旧日报一份都不搬', () =>
 
 test('旧判重表并进 B站 节：旧格式的「挑了」读得懂，不会整份照抄', () => {
   makeOld({ seen: OLD_SEEN })
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   const r = importFromBili(layout)
 
   const text = readFileSync(layout.seen, 'utf8')
@@ -105,7 +105,7 @@ test('旧判重表并进 B站 节：旧格式的「挑了」读得懂，不会�
 
 test('幂等：再导一次什么都不做，也不覆盖用户后来改的配置', () => {
   makeOld({ config: { perDay: 3 }, seen: OLD_SEEN })
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   importFromBili(layout)
   writeFileSync(layout.config, JSON.stringify({ perDay: 9, 'migrated-from': 'bili-duty' }), 'utf8')
 
@@ -116,7 +116,7 @@ test('幂等：再导一次什么都不做，也不覆盖用户后来改的配�
 
 test('这边已经在用了就不动', () => {
   makeOld({ config: { perDay: 3 } })
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   mkdirSync(join(layout.home, 'out'), { recursive: true })
   writeFileSync(layout.seen, '# 见闻录\n', 'utf8')
   writeFileSync(join(layout.home, 'out', '2026-11-02.md'), '# 2026-11-02\n', 'utf8')
@@ -133,7 +133,7 @@ test('导入过程一个字节都不写旧目录', () => {
     seen: readFileSync(join(oldHome, 'seen.md'), 'utf8'),
     reports: countReports(oldHome),
   }
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   importFromBili(layout)
 
   assert.deepEqual(readdirSync(oldHome).sort(), before.files, '旧目录里不该多出文件')
@@ -211,7 +211,7 @@ test('搬到同一个位置：直接说没搬', () => {
 
 /** 造一个"已经在用"的新家 + 一个更完整的旧家 */
 function makeBoth() {
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   mkdirSync(layout.reports, { recursive: true })
   mkdirSync(layout.seenDir, { recursive: true })
   writeFileSync(layout.seen, [
@@ -288,7 +288,7 @@ test('历史补搬：跑第二遍什么都不做（幂等）', () => {
 })
 
 test('历史补搬：旧目录不存在时安静跳过', () => {
-  const layout = layoutOf(join(root, 'tianshu-caifeng'))
+  const layout = layoutOf(join(root, 'dragonfly'))
   mkdirSync(layout.home, { recursive: true })
   const r = importHistory(layout)
   assert.equal(r.ok, true)

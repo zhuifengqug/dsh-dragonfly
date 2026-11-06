@@ -231,7 +231,7 @@ test('normalizeSeconds 取整并夹在 1..10', () => {
 // 接管上一轮还开着的浏览器：端口记录的优先级
 // ---------------------------------------------------------------------------
 test('findLiveCdp 先认 port.json 记的那个端口', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'caifeng-port-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dragonfly-port-'))
   const file = join(dir, 'port.json')
   try {
     writePortRecord(file, 9300)
@@ -251,7 +251,7 @@ test('findLiveCdp 先认 port.json 记的那个端口', async () => {
 })
 
 test('findLiveCdp 记录的端口死了就往下扫，找到活的那个', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'caifeng-port-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dragonfly-port-'))
   const file = join(dir, 'port.json')
   try {
     writePortRecord(file, 9290)
@@ -263,7 +263,7 @@ test('findLiveCdp 记录的端口死了就往下扫，找到活的那个', async
 })
 
 test('findLiveCdp 一个活的都没有时返回 null，不抛', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'caifeng-port-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dragonfly-port-'))
   const file = join(dir, 'port.json')
   try {
     writePortRecord(file, 9290)
@@ -369,15 +369,15 @@ test('动作表正好是这 4 个名字', () => {
 // ---------------------------------------------------------------------------
 // 桥：白名单在注册层生效 + 语法检查
 // ---------------------------------------------------------------------------
-test('桥里读 CAIFENG_TOOLS 且名单外不注册', () => {
+test('桥里读 DRAGONFLY_TOOLS 且名单外不注册', () => {
   const source = readFileSync(BRIDGE, 'utf8')
-  assert.ok(source.includes('CAIFENG_TOOLS'), '必须读 CAIFENG_TOOLS')
+  assert.ok(source.includes('DRAGONFLY_TOOLS'), '必须读 DRAGONFLY_TOOLS')
   // 「名单外的连注册都不注册」＝ 用 filter 收窄后交给 tools/list，而不是在 call 时挡
   assert.match(source, /selectTools\s*\(/, '应该有 selectTools 收窄')
   assert.match(source, /catalog\.filter\(/, 'selectTools 应该用 filter 收窄目录')
   assert.match(source, /tools:\s*tools\.map\(/, 'tools/list 回的应该是收窄后的数组')
   // 4 个工具名必须精确
-  for (const name of ['caifeng_dy_open', 'caifeng_dy_state', 'caifeng_dy_next', 'caifeng_dy_frames']) {
+  for (const name of ['dragonfly_dy_open', 'dragonfly_dy_state', 'dragonfly_dy_next', 'dragonfly_dy_frames']) {
     assert.ok(source.includes(`'${name}'`), `桥里要有 ${name}`)
   }
 })

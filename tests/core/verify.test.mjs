@@ -113,7 +113,7 @@ test('楼中楼查不到时也不许断言没发出去', async () => {
 })
 
 test('verifyRecent 的整段文字：独立小节 + 逐条结论，没 rpid 的那条照写「未取到 rpid」', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'caifeng-verify-'))
+  const home = mkdtempSync(join(tmpdir(), 'dragonfly-verify-'))
   const layout = { home, out: join(home, 'out') }
   writeFileSync(join(home, 'comments.md'), [
     '- 2026-11-02 18:30 BV1xx411c7mD rpid=123 · 第一条',
@@ -139,7 +139,7 @@ test('verifyRecent 的整段文字：独立小节 + 逐条结论，没 rpid 的�
 })
 
 test('没登录就别去核，给一句人话', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'caifeng-verify-'))
+  const home = mkdtempSync(join(tmpdir(), 'dragonfly-verify-'))
   try {
     const r = await verifyRecent({ home, out: join(home, 'out') }, null)
     assert.match(r.text, /还没扫码登录/)
@@ -148,7 +148,7 @@ test('没登录就别去核，给一句人话', async () => {
 })
 
 test('复核段追加进日报后，再追加一次不会出现两遍', () => {
-  const home = mkdtempSync(join(tmpdir(), 'caifeng-verify-'))
+  const home = mkdtempSync(join(tmpdir(), 'dragonfly-verify-'))
   const out = join(home, 'out')
   try {
     mkdirSync(out, { recursive: true })
@@ -168,7 +168,7 @@ test('复核段追加进日报后，再追加一次不会出现两遍', () => {
 })
 
 test('日报还不存在时不硬造一份', () => {
-  const home = mkdtempSync(join(tmpdir(), 'caifeng-verify-'))
+  const home = mkdtempSync(join(tmpdir(), 'dragonfly-verify-'))
   try {
     const out = join(home, 'out')
     mkdirSync(out, { recursive: true })

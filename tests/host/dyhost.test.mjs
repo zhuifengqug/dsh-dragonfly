@@ -38,7 +38,7 @@ function makeHost(home, { budget } = {}) {
 }
 
 test('没握过手时令牌一律拒，握手之后才对', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     const host = makeHost(home)
     assert.equal(host.checkToken(''), false, '还没 publish 就什么都别放行')
@@ -64,7 +64,7 @@ test('没握过手时令牌一律拒，握手之后才对', async () => {
 })
 
 test('握不到宿主地址时不写文件、返回 no-origin', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     const host = createDyHost({ layout: () => fakeLayout(home), origin: () => '', log: () => {} })
     const r = host.publish()
@@ -77,7 +77,7 @@ test('握不到宿主地址时不写文件、返回 no-origin', async () => {
 })
 
 test('不认识的动作回 unknown-action，不炸', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     const host = makeHost(home)
     const r = await host.handle('不存在的动作', {})
@@ -89,7 +89,7 @@ test('不认识的动作回 unknown-action，不炸', async () => {
 })
 
 test('每日分钟数到顶后 open/next/frames 被截住，state 仍然能读', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     let spent = 0
     const host = makeHost(home, {
@@ -113,7 +113,7 @@ test('每日分钟数到顶后 open/next/frames 被截住，state 仍然能读',
 })
 
 test('额度没到顶时照常放行，并且真的往回看才记账', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     const spent = []
     const host = makeHost(home, {
@@ -137,7 +137,7 @@ test('额度没到顶时照常放行，并且真的往回看才记账', async ()
 })
 
 test('limit 为 0 表示不设闸（用户自己关掉天花板）', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     const host = makeHost(home, {
       budget: () => ({ limit: 0, used: 99999, spend: () => {} }),
@@ -151,7 +151,7 @@ test('limit 为 0 表示不设闸（用户自己关掉天花板）', async () =>
 })
 
 test('宿主地址文件写在 <家>/dy/control/host.json', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-dyhost-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-dyhost-'))
   try {
     const lay = fakeLayout(home)
     assert.match(hostRecordFile(lay), /dy[\\/]control[\\/]host\.json$/)

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { apply, Config, inject, name } from '../../index.js'
-import { createCaifengService } from '../../lib/service.mjs'
+import { createDragonflyService } from '../../lib/service.mjs'
 import { DEFAULTS } from '../../lib/config.mjs'
 
 /**
@@ -83,29 +83,29 @@ function makeCtx(home) {
 }
 
 test('插件导出 name / inject / Config 三件套', () => {
-  assert.equal(name, 'tianshu-caifeng')
+  assert.equal(name, 'dragonfly')
   assert.deepEqual(inject, ['webServer', 'tools', 'settings', 'commands'])
   assert.ok(Config, 'Config 应该存在（拿得到 schemastery）')
 })
 
 test('apply 把三条口子都接上了：工具、命令、路由', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-host-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-host-'))
   try {
     const ctx = makeCtx(home)
     apply(ctx, DEFAULTS)
 
     const names = ctx.toolList.map((t) => t.name).sort()
-    assert.deepEqual(names, ['caifeng_config', 'caifeng_run', 'caifeng_status'])
+    assert.deepEqual(names, ['dragonfly_config', 'dragonfly_run', 'dragonfly_status'])
 
     assert.equal(ctx.commandList.length, 1)
-    assert.equal(ctx.commandList[0].name, 'caifeng')
+    assert.equal(ctx.commandList[0].name, 'dragonfly')
 
     assert.equal(ctx.routeList.length, 1)
-    assert.equal(ctx.routeList[0].path, '/api/caifeng')
+    assert.equal(ctx.routeList[0].path, '/api/dragonfly')
     assert.equal(ctx.routeList[0].kind, 'prefix')
 
     // 服务只暴露三个口子
-    const svc = ctx.get('tianshuCaifeng')
+    const svc = ctx.get('dragonfly')
     assert.deepEqual(Object.keys(svc).sort(), ['config', 'run', 'status'])
 
     // 卸载时定时器要停（否则进程退不掉）
@@ -116,14 +116,14 @@ test('apply 把三条口子都接上了：工具、命令、路由', async () =>
 })
 
 test('apply 用 ctx.inject 开一个 workspaceRegistry 子 fiber（主 ctx 上取不到它）', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-host-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-host-'))
   try {
     const ctx = makeCtx(home)
     // 主 ctx 的 inject 里没有它 —— 这正是「对账跑了却一次没生效」的根因
     assert.equal(ctx.get('workspaceRegistry'), undefined)
     const ws = {
       sessionIds: [],
-      record: { title: '采风值班' },
+      record: { title: '蜻蛉值班' },
       resolveByPath: async () => ws,
       attachSession: async () => {},
       detachSession: async () => {},
@@ -138,7 +138,7 @@ test('apply 用 ctx.inject 开一个 workspaceRegistry 子 fiber（主 ctx 上�
 })
 
 test('工具的输出形状符合宿主契约（defineTool 编译后的形状）', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-shape-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-shape-'))
   try {
     const ctx = makeCtx(home)
     apply(ctx, DEFAULTS)
@@ -156,12 +156,12 @@ test('工具的输出形状符合宿主契约（defineTool 编译后的形状）
   }
 })
 
-test('caifeng_status 在没有信源时报「跑不了」，不是报错', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-nosrc-'))
+test('dragonfly_status 在没有信源时报「跑不了」，不是报错', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-nosrc-'))
   try {
     const ctx = makeCtx(home)
     apply(ctx, { ...DEFAULTS, sources: { bili: false, douyin: false } })
-    const statusTool = ctx.toolList.find((t) => t.name === 'caifeng_status')
+    const statusTool = ctx.toolList.find((t) => t.name === 'dragonfly_status')
     const out = await statusTool.execute({}, {})
     assert.equal(out.ok, true)
     assert.match(out.text, /额度/)
@@ -170,12 +170,12 @@ test('caifeng_status 在没有信源时报「跑不了」，不是报错', async
   }
 })
 
-test('caifeng_run 在两个信源都关着时明确说清楚', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-run-'))
+test('dragonfly_run 在两个信源都关着时明确说清楚', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-run-'))
   try {
     const ctx = makeCtx(home)
     apply(ctx, { ...DEFAULTS, sources: { bili: false, douyin: false } })
-    const runTool = ctx.toolList.find((t) => t.name === 'caifeng_run')
+    const runTool = ctx.toolList.find((t) => t.name === 'dragonfly_run')
     const out = await runTool.execute({}, {})
     assert.equal(out.ok, false)
     assert.match(out.text, /信源|跑不了|没什么可看/)
@@ -184,17 +184,17 @@ test('caifeng_run 在两个信源都关着时明确说清楚', async () => {
   }
 })
 
-test('caifeng_config 改值会落盘到 config.json（文件是真源）', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-cfg-'))
+test('dragonfly_config 改值会落盘到 config.json（文件是真源）', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-cfg-'))
   try {
     const ctx = makeCtx(home)
     apply(ctx, DEFAULTS)
-    const cfgTool = ctx.toolList.find((t) => t.name === 'caifeng_config')
+    const cfgTool = ctx.toolList.find((t) => t.name === 'dragonfly_config')
     const out = await cfgTool.execute({ patch: { perDay: 2, dmMode: 'draft' } }, {})
     assert.equal(out.ok, true)
     assert.ok(out.changed.includes('perDay'))
 
-    const file = join(home, 'tianshu-caifeng', 'config.json')
+    const file = join(home, 'dragonfly', 'config.json')
     assert.ok(existsSync(file), 'config.json 应该被写出来')
     const saved = JSON.parse(await readFile(file, 'utf8'))
     assert.equal(saved.perDay, 2)
@@ -207,11 +207,11 @@ test('caifeng_config 改值会落盘到 config.json（文件是真源）', async
 // ── 服务层：写口与判重（票 #4 的一部分，先立起来） ───────────────────────────
 function makeService(home) {
   const ctx = makeCtx(home)
-  return { ctx, service: createCaifengService(ctx, { pluginDir: process.cwd(), config: DEFAULTS, log: () => {} }) }
+  return { ctx, service: createDragonflyService(ctx, { pluginDir: process.cwd(), config: DEFAULTS, log: () => {} }) }
 }
 
 test('report_write 同日按 id 合并，不产生第二条', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-report-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-report-'))
   try {
     const { service } = makeService(home)
     const entry = '### [B站] BV1xx411c7mD / 标题\n**档位**：值得看\n**为什么值得**：12 分钟，播放 3 万。\n'
@@ -228,7 +228,7 @@ test('report_write 同日按 id 合并，不产生第二条', async () => {
 })
 
 test('report_write 空内容不写（别拿空壳盖掉已有日报）', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-empty-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-empty-'))
   try {
     const { service } = makeService(home)
     const r = await service.writeReport({ text: '   ' })
@@ -239,7 +239,7 @@ test('report_write 空内容不写（别拿空壳盖掉已有日报）', async (
 })
 
 test('seen 写口幂等：同一天同一条记两次，只有一行', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-seen-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-seen-'))
   try {
     const { service } = makeService(home)
     await service.appendSeen({ id: 'BV1xx411c7mD', title: '甲', up: 'UP', status: '弃' })
@@ -253,7 +253,7 @@ test('seen 写口幂等：同一天同一条记两次，只有一行', async () 
 })
 
 test('初次起来就把家目录、见闻录、章程铺好', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-home-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-home-'))
   try {
     const { service } = makeService(home)
     const lay = service.layout
@@ -269,7 +269,7 @@ test('初次起来就把家目录、见闻录、章程铺好', async () => {
 })
 
 test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-status-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-status-'))
   try {
     const { service } = makeService(home)
     const s = service.status()
@@ -283,7 +283,7 @@ test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
 })
 
 test('诊断逐项：六样都列出来，缺的那样要带「点哪儿」', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-diag-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-diag-'))
   const realDshHome = process.env.DSH_HOME
   // 把 DSH_HOME 指到临时目录：否则"从旧插件导入"会把真机上 bili-duty 的配置与凭据搬进来，
   // 这条用例就变成"看这台机器装没装过"，而不是"空机器上诊断说什么"
@@ -329,7 +329,7 @@ test('诊断逐项：六样都列出来，缺的那样要带「点哪儿」', as
 })
 
 test('诊断的工作区项：登记过就说标题与条数，没登记就说点哪儿去加', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-diag-ws-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-diag-ws-'))
   const realDshHome = process.env.DSH_HOME
   process.env.DSH_HOME = join(home, 'dsh')
   try {
@@ -337,7 +337,7 @@ test('诊断的工作区项：登记过就说标题与条数，没登记就说�
     const cwd = join(home, '值班')
     ctx.set('workspaceRegistry', {
       resolveByPath: async () => ({
-        record: { title: '采风值班' },
+        record: { title: '蜻蛉值班' },
         sessionIds: ['session-a', 'session-b'],
         attachSession: async () => {},
       }),
@@ -349,7 +349,7 @@ test('诊断的工作区项：登记过就说标题与条数，没登记就说�
     const reg = (d) => d.checks.find((c) => c.key === 'workspace')
     const hit = reg(await service.diagnose())
     assert.equal(hit.ok, true)
-    assert.match(hit.line, /采风值班/)
+    assert.match(hit.line, /蜻蛉值班/)
     assert.match(hit.line, /2 个会话/)
 
     // 换成"这个目录还没登记成工作区"：不能装没事，要让人知道去左侧加一下
@@ -366,7 +366,7 @@ test('诊断的工作区项：登记过就说标题与条数，没登记就说�
 })
 
 test('诊断在依赖缺失时给的是人话，不是堆栈', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'caifeng-diag2-'))
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-diag2-'))
   try {
     const { service } = makeService(home)
     const d = await service.diagnose()

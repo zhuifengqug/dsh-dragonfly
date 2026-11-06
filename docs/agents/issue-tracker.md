@@ -1,6 +1,6 @@
 # Issue tracker：GitHub
 
-本仓库的 issue 与 spec 都放在 GitHub Issues 里，仓库是 `zhuifengqug/tianshu-caifeng`。所有操作走 `gh` CLI。
+本仓库的 issue 与 spec 都放在 GitHub Issues 里，仓库是 `zhuifengqug/dragonfly`。所有操作走 `gh` CLI。
 
 ## 约定
 

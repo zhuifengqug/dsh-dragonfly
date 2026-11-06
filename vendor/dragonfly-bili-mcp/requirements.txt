@@ -1,9 +1,9 @@
-# 天枢·采风 —— B站 MCP 服务的 Python 依赖
+# 虫珀·蜻蛉 —— B站 MCP 服务的 Python 依赖
 # （基座是 AGI_Ananas/bilibili-mcp，MIT；这里按实测锁版本）
 bilibili-api-python>=17.4.1,<18
 aiohttp>=3.9.0
 # 🔴 必须锁 <2：mcp 2.x 的 server 没有 list_tools，这个服务起不来（2026-10-09 踩过）
 mcp>=1.0.0,<2
-# caifeng_bili_frames 裁画面帧要 Pillow；qrcode[pil] 会带进来，但那是传递依赖 —— 显式钉住
+# dragonfly_bili_frames 裁画面帧要 Pillow；qrcode[pil] 会带进来，但那是传递依赖 —— 显式钉住
 Pillow>=9.0
 qrcode[pil]>=8.0

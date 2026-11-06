@@ -19,20 +19,20 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const CHARTER = readFileSync(join(REPO, 'prompts', 'duty.md'), 'utf8')
 
 const layout = {
-  home: 'D:/home/tianshu-caifeng',
-  out: 'D:/home/tianshu-caifeng/out',
-  reports: 'D:/home/tianshu-caifeng/reports',
-  seen: 'D:/home/tianshu-caifeng/seen.md',
+  home: 'D:/home/dragonfly',
+  out: 'D:/home/dragonfly/out',
+  reports: 'D:/home/dragonfly/reports',
+  seen: 'D:/home/dragonfly/seen.md',
   duty: '',
 }
 
 test('占位符都换成了真路径，一个不剩', () => {
   const text = '报告写 <报告目录>，笔记写 <笔记目录>，判重看 <见闻录>，家在 <家目录>。'
   const out = renderCharter(text, layout, { why: 'auto', cfg: DEFAULTS })
-  assert.match(out, /报告写 D:\/home\/tianshu-caifeng\/out/)
-  assert.match(out, /笔记写 D:\/home\/tianshu-caifeng\/reports/)
-  assert.match(out, /判重看 D:\/home\/tianshu-caifeng\/seen\.md/)
-  assert.match(out, /家在 D:\/home\/tianshu-caifeng/)
+  assert.match(out, /报告写 D:\/home\/dragonfly\/out/)
+  assert.match(out, /笔记写 D:\/home\/dragonfly\/reports/)
+  assert.match(out, /判重看 D:\/home\/dragonfly\/seen\.md/)
+  assert.match(out, /家在 D:\/home\/dragonfly/)
   assert.doesNotMatch(out, /<家目录>|<报告目录>|<笔记目录>|<见闻录>/)
 })
 

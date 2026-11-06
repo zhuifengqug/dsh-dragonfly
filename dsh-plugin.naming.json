@@ -3,37 +3,37 @@
   "policy": "dsh-plugin-naming/v1",
   "plugin": {
     "namespace": "zhuifengqug",
-    "name": "tianshu-caifeng",
-    "coordinate": "zhuifengqug/tianshu-caifeng",
-    "packageName": "@zhuifengqug/dsh-tianshu-caifeng"
+    "name": "dragonfly",
+    "coordinate": "zhuifengqug/dragonfly",
+    "packageName": "@zhuifengqug/dsh-dragonfly"
   },
   "names": {
-    "pluginNames": ["tianshu-caifeng"],
-    "loaderIds": ["zhuifengqug-tianshu-caifeng"],
-    "services": ["tianshuCaifeng"],
+    "pluginNames": ["dragonfly"],
+    "loaderIds": ["zhuifengqug-dragonfly"],
+    "services": ["dragonfly"],
     "tools": [
-      "caifeng_bili_search",
-      "caifeng_bili_subtitle",
-      "caifeng_bili_comments",
-      "caifeng_bili_frames",
-      "caifeng_bili_favorites",
-      "caifeng_bili_reply",
-      "caifeng_bili_dm",
-      "caifeng_dy_open",
-      "caifeng_dy_state",
-      "caifeng_dy_next",
-      "caifeng_dy_frames",
-      "caifeng_report_write",
-      "caifeng_seen",
-      "caifeng_status",
-      "caifeng_run",
-      "caifeng_config"
+      "dragonfly_bili_search",
+      "dragonfly_bili_subtitle",
+      "dragonfly_bili_comments",
+      "dragonfly_bili_frames",
+      "dragonfly_bili_favorites",
+      "dragonfly_bili_reply",
+      "dragonfly_bili_dm",
+      "dragonfly_dy_open",
+      "dragonfly_dy_state",
+      "dragonfly_dy_next",
+      "dragonfly_dy_frames",
+      "dragonfly_report_write",
+      "dragonfly_seen",
+      "dragonfly_status",
+      "dragonfly_run",
+      "dragonfly_config"
     ],
-    "commands": ["caifeng"],
+    "commands": ["dragonfly"],
     "skills": [],
     "skillProviders": [],
     "events": [],
-    "settingsNamespaces": ["caifeng"],
-    "routes": ["/api/caifeng"]
+    "settingsNamespaces": ["dragonfly"],
+    "routes": ["/api/dragonfly"]
   }
 }

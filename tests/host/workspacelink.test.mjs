@@ -5,7 +5,7 @@
  *
  *   - `dsh-workspace` 的 `bootstrap()` 只在 `state.initialized === false` 时跑一次；
  *   - `attachSession()` 只被 `SessionService.create()`（带 workspaceId 发起）调到，
- *     而值班轮是 `spawn(dsh … '--profile' 'caifeng-duty' prompt)`，只有 cwd。
+ *     而值班轮是 `spawn(dsh … '--profile' 'dragonfly-duty' prompt)`，只有 cwd。
  *
  * 所以这里最容易错的几处，全部拿真文件/假服务钉死：
  *
@@ -34,8 +34,8 @@ function seedSession(root, cwd, id) {
 }
 
 test('projectKey 与宿主同名：中文按 ~XXXX 转义', () => {
-  assert.equal(projectKey('D:\\dsh-workspaces\\采风值班'), '--D-dsh-workspaces-~91C7~98CE~503C~73ED--')
-  assert.equal(projectKey('D:\\DSHData\\home\\tianshu-caifeng'), '--D-DSHData-home-tianshu-caifeng--')
+  assert.equal(projectKey('D:\\dsh-workspaces\\蜻蛉值班'), '--D-dsh-workspaces-~873B~86C9~503C~73ED--')
+  assert.equal(projectKey('D:\\DSHData\\home\\dragonfly'), '--D-DSHData-home-dragonfly--')
   // 连续的 `/ \ :` 折叠成一个 `-`；前导 `-` 去掉
   assert.equal(projectKey('D:\\a\\\\b::c'), '--D-a-b-c--')
   // `~` 自己也要转义（否则与转义序列撞车）
@@ -45,7 +45,7 @@ test('projectKey 与宿主同名：中文按 ~XXXX 转义', () => {
 test('listSessionIds 只认带 session.v4.jsonl.zstd 的目录', () => {
   const root = mkdtempSync(join(tmpdir(), 'cf-ws-'))
   try {
-    const cwd = 'D:\\dsh-workspaces\\采风值班'
+    const cwd = 'D:\\dsh-workspaces\\蜻蛉值班'
     seedSession(root, cwd, 'session-aaa')
     // 空目录（还没有会话文件）不算
     mkdirSync(join(root, projectKey(cwd), 'session-empty'), { recursive: true })
@@ -60,7 +60,7 @@ test('listSessionIds 只认带 session.v4.jsonl.zstd 的目录', () => {
 test('watchNewSession 只报「跑之前没有」的那个会话', async () => {
   const root = mkdtempSync(join(tmpdir(), 'cf-ws-'))
   try {
-    const cwd = 'D:\\dsh-workspaces\\采风值班'
+    const cwd = 'D:\\dsh-workspaces\\蜻蛉值班'
     seedSession(root, cwd, 'session-old')
     const before = listSessionIds(root, cwd)
     const seen = []
@@ -79,7 +79,7 @@ test('watchNewSession 只报「跑之前没有」的那个会话', async () => {
 test('watchNewSession：onAppear 返回 false 时继续试下一次', async () => {
   const root = mkdtempSync(join(tmpdir(), 'cf-ws-'))
   try {
-    const cwd = 'D:\\dsh-workspaces\\采风值班'
+    const cwd = 'D:\\dsh-workspaces\\蜻蛉值班'
     let calls = 0
     const w = watchNewSession({
       root, cwd, before: [], pollMs: 20, timeoutMs: 3000, unref: false,
@@ -128,7 +128,7 @@ test('attachToWorkspace：已在工作区里就不再调 attachSession', async (
   let calls = 0
   const ws = {
     sessionIds: ['session-1'],
-    record: { title: '采风值班' },
+    record: { title: '蜻蛉值班' },
     attachSession: async () => { calls += 1 },
   }
   const ctx = { get: () => ({ resolveByPath: async () => ws }) }
@@ -137,7 +137,7 @@ test('attachToWorkspace：已在工作区里就不再调 attachSession', async (
 })
 
 test('attachToWorkspace：真的调 attachSession，抛错时把原因带回来', async () => {
-  const ws = { sessionIds: [], record: { title: '采风值班' }, attachSession: async () => {} }
+  const ws = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => {} }
   const ctx = { get: () => ({ resolveByPath: async () => ws }) }
   assert.deepEqual(await attachToWorkspace(ctx, 'D:\\x', 'session-2'), { ok: true })
   assert.deepEqual(ws.sessionIds, []) // 假实现不改数组，这里只断言调用成功
@@ -151,8 +151,8 @@ test('attachToWorkspace：真的调 attachSession，抛错时把原因带回来'
 
 test('sessionDir：把 cwd 编码成那一层目录名', () => {
   assert.equal(
-    sessionDir('D:\\DSHData\\home\\sessions', 'D:\\dsh-workspaces\\采风值班'),
-    join('D:\\DSHData\\home\\sessions', '--D-dsh-workspaces-~91C7~98CE~503C~73ED--'),
+    sessionDir('D:\\DSHData\\home\\sessions', 'D:\\dsh-workspaces\\蜻蛉值班'),
+    join('D:\\DSHData\\home\\sessions', '--D-dsh-workspaces-~873B~86C9~503C~73ED--'),
   )
   assert.equal(sessionDir('', 'D:\\x'), '')
 })
@@ -161,7 +161,7 @@ test('reconcileWorkspace：目录里多出来的补进去，记账里悬空的�
   const calls = []
   const ws = {
     sessionIds: ['session-gone', 'session-alive'],
-    record: { title: '采风值班' },
+    record: { title: '蜻蛉值班' },
     attachSession: async (id) => { calls.push(['attach', id]) },
     detachSession: async (id) => { calls.push(['detach', id]) },
   }
@@ -175,7 +175,7 @@ test('reconcileWorkspace：已经对上账时一次写都不发（但日志照�
   let writes = 0
   const ws = {
     sessionIds: ['session-alive'],
-    record: { title: '采风值班' },
+    record: { title: '蜻蛉值班' },
     attachSession: async () => { writes += 1 },
     detachSession: async () => { writes += 1 },
   }
@@ -193,7 +193,7 @@ test('reconcileWorkspace：已经对上账时一次写都不发（但日志照�
 
 test('pickRegistry：注入过的子 fiber 直接挂在 ctx 上也能取到', async () => {
   // 主 ctx 的 get() 恒拿不到（inject 里没有它）；子 fiber 的 ctx 会把服务挂成属性
-  const ws = { sessionIds: [], record: { title: '采风值班' }, attachSession: async () => {} }
+  const ws = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => {} }
   const childCtx = { workspaceRegistry: { resolveByPath: async () => ws }, get: () => undefined }
   assert.equal(pickRegistry(childCtx), childCtx.workspaceRegistry)
   assert.deepEqual(await attachToWorkspace(childCtx, 'D:\\x', 'session-9'), { ok: true })

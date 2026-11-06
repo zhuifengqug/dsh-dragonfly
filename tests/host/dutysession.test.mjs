@@ -10,7 +10,7 @@
  * ============================================================================
  */
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -21,7 +21,7 @@ import {
 import { projectKey } from '../../lib/workspace-link.mjs'
 import { layoutOf } from '../../lib/paths.mjs'
 
-const CWD = 'D:\\dsh-workspaces\\采风值班'
+const CWD = 'D:\\dsh-workspaces\\蜻蛉值班'
 
 /** 造一个临时家 + sessions 根，并可选地铺一条会话文件 */
 function fixture({ sessionId = 'session-demo', startedOn = '2026-11-04', withFile = true } = {}) {
@@ -128,7 +128,12 @@ test('还没有记录时：认领目录里最新那条，不再凭空新建', ()
     // 目录里放一条"上一轮留下的"会话，文件时间是今天
     const dir = join(f.sessions, projectKey(CWD), 'session-yesterday')
     mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, 'session.v4.jsonl.zstd'), 'x')
+    const file = join(dir, 'session.v4.jsonl.zstd')
+    writeFileSync(file, 'x')
+    // 文件时间钉死到 2026-11-04 —— newestSession 是按 mtime 推起始日的，
+    // 不钉的话这条用例会跟着真实日期漂（真到了第二天就成「时钟倒流」，认领不了）
+    const stamp = new Date('2026-11-04T12:00:00+08:00')
+    utimesSync(file, stamp, stamp)
     const lines = []
     const r = pickDutySession({
       layout: f.layout, sessionsRoot: f.sessions, cwd: CWD, today: '2026-11-04',

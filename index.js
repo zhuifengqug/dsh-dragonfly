@@ -3,9 +3,9 @@
  * ============================================================================
  * 这个文件只干四件事，判断一律在 lib/ 里：
  *   ① 导出 cordis 要的三件套：`name` / `inject` / `Config` / `apply`
- *   ② 注册 HTTP 路由 `/api/caifeng/*`（界面全靠它，走 fetch）
- *   ③ 注册宿主工具 `caifeng_*`（给用户会话用的那几个）
- *   ④ 注册 `/caifeng` 命令 + 起 60 秒调度
+ *   ② 注册 HTTP 路由 `/api/dragonfly/*`（界面全靠它，走 fetch）
+ *   ③ 注册宿主工具 `dragonfly_*`（给用户会话用的那几个）
+ *   ④ 注册 `/dragonfly` 命令 + 起 60 秒调度
  *
  * ⚠️ `@deepseek-ai/*` 一个都不裸 import：桌面版 profile 不装 optional peer，
  *    裸 import 会让整条插件**不激活**（宿主只留一句 warning）。全部走 lib/hostdeps.mjs。
@@ -16,7 +16,7 @@ import { dirname } from 'node:path'
 import { readFileSync } from 'node:fs'
 
 import { loadHostDeps } from './lib/hostdeps.mjs'
-import { createCaifengService } from './lib/service.mjs'
+import { createDragonflyService } from './lib/service.mjs'
 import { DEFAULTS, FIELD_LABELS, clampConfig, pickKnownKeys } from './lib/config.mjs'
 import { listModels, currentDefault } from './lib/models.mjs'
 import { createDyHost } from './lib/dy-host.mjs'
@@ -26,7 +26,7 @@ import { readCredential } from './lib/login.mjs'
 const pluginDir = dirname(fileURLToPath(import.meta.url))
 
 /** 插件名（跟命名清单一致） */
-export const name = 'tianshu-caifeng'
+export const name = 'dragonfly'
 
 /**
  * 要用的服务。
@@ -113,12 +113,12 @@ export function apply(ctx, config = {}) {
   const log = (line) => {
     logNotes.push(line)
     // 只在真的有话要说时打到控制台，别刷屏
-    if (process.env.CAIFENG_DEBUG) console.log(`[caifeng] ${line}`)
+    if (process.env.DRAGONFLY_DEBUG) console.log(`[dragonfly] ${line}`)
   }
 
   for (const note of hostDeps.notes) log(note)
 
-  const service = createCaifengService(ctx, { pluginDir, config, log })
+  const service = createDragonflyService(ctx, { pluginDir, config, log })
 
   /**
    * 抖音在宿主这一头。
@@ -144,8 +144,8 @@ export function apply(ctx, config = {}) {
   }))
 
   ctx.effect(() => tool({
-    name: 'caifeng_status',
-    description: '看采风今天的情况：收了几条、额度剩多少、下次什么时候跑、有没有在跑。',
+    name: 'dragonfly_status',
+    description: '看蜻蛉今天的情况：收了几条、额度剩多少、下次什么时候跑、有没有在跑。',
     parameters: {},
     execute: async () => {
       const s = service.status()
@@ -160,21 +160,21 @@ export function apply(ctx, config = {}) {
         status: s,
       }
     },
-  }), 'caifeng: tool status')
+  }), 'dragonfly: tool status')
 
   ctx.effect(() => tool({
-    name: 'caifeng_run',
-    description: '立刻跑一轮采风（跟界面上点「现在就跑」一样，手动额度与冷却照走）。',
+    name: 'dragonfly_run',
+    description: '立刻跑一轮蜻蛉（跟界面上点「现在就跑」一样，手动额度与冷却照走）。',
     parameters: {},
     execute: async () => {
       const res = await service.run('manual')
       return { ok: res.ok, text: res.text || (res.ok ? '跑完了。' : '没跑成。'), result: res }
     },
-  }), 'caifeng: tool run')
+  }), 'dragonfly: tool run')
 
   ctx.effect(() => tool({
-    name: 'caifeng_config',
-    description: '读或改采风的配置。不给 patch 就是读。',
+    name: 'dragonfly_config',
+    description: '读或改蜻蛉的配置。不给 patch 就是读。',
     parameters: {
       patch: { type: 'object', additionalProperties: true, description: '要改的字段（只认认识的键）' },
     },
@@ -190,22 +190,22 @@ export function apply(ctx, config = {}) {
         config: res.config,
       }
     },
-  }), 'caifeng: tool config')
+  }), 'dragonfly: tool config')
 
   // ── 命令 ──────────────────────────────────────────────────────────────────
   // ⚠️ 别给 `input: { hint: '' }`：宿主要求 hint 非空，空串会抛
-  //    `command "caifeng" input hint must not be empty`，整条插件就不激活了。
+  //    `command "dragonfly" input hint must not be empty`，整条插件就不激活了。
   //    这个命令不吃参数，直接不传 input。
   ctx.effect(() => ctx.commands.register({
-    name: 'caifeng',
-    description: '立刻跑一轮采风',
+    name: 'dragonfly',
+    description: '立刻跑一轮蜻蛉',
     handler: async () => {
       const res = await service.run('manual')
       return res.ok
         ? { kind: 'success', text: res.text || '跑完了。' }
         : { kind: 'error', text: res.text || '没跑成。' }
     },
-  }), 'caifeng: command')
+  }), 'dragonfly: command')
 
   // ── HTTP 路由 ────────────────────────────────────────────────────────────
   const json = (res, code, body) => {
@@ -237,10 +237,10 @@ export function apply(ctx, config = {}) {
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
-    path: '/api/caifeng',
+    path: '/api/dragonfly',
     handler: async (req, res) => {
       const url = new URL(req.url, 'http://localhost')
-      const path = url.pathname.replace(/^\/api\/caifeng/, '').replace(/\/$/, '') || '/'
+      const path = url.pathname.replace(/^\/api\/dragonfly/, '').replace(/\/$/, '') || '/'
       const isPost = req.method === 'POST'
 
       /**
@@ -249,7 +249,7 @@ export function apply(ctx, config = {}) {
        * 它只认 `<家目录>/dy/control/host.json` 里那次 handshake 写下的令牌。
        */
       if (path.startsWith('/dy/')) {
-        const token = String(req.headers?.['x-caifeng-token'] || '')
+        const token = String(req.headers?.['x-dragonfly-token'] || '')
         if (!dyHost.checkToken(token)) {
           log('抖音：来路令牌不对，拒了')
           return json(res, 403, { ok: false, reason: 'bad-token', text: '令牌不对' })
@@ -423,7 +423,7 @@ export function apply(ctx, config = {}) {
         return json(res, 500, { ok: false, text: `出错了：${e?.message || e}` })
       }
     },
-  }), 'caifeng: web route')
+  }), 'dragonfly: web route')
 
   /**
    * 路由一注册就把宿主地址写给桥。
@@ -450,13 +450,13 @@ export function apply(ctx, config = {}) {
       done = true
       if (timer) clearTimeout(timer)
     }
-  }, 'caifeng: dy handshake')
+  }, 'dragonfly: dy handshake')
 
   // ── 调度 ──────────────────────────────────────────────────────────────────
   ctx.effect(() => {
     service.startTimer()
     return () => service.stopTimer()
-  }, 'caifeng: scheduler')
+  }, 'dragonfly: scheduler')
 
   // ── 工作区对账（服务就位后跑一次）────────────────────────────────────────
   // 会话记账只在「从工作区发起」或「我们那一轮认领」时才改；插件重装、应用升级、
@@ -477,23 +477,23 @@ export function apply(ctx, config = {}) {
   })
 
   // 卸载时只断 CDP，不关浏览器 —— 登录态要留着，下次还要接着用
-  ctx.effect(() => () => { dyHost.close().catch(() => {}) }, 'caifeng: dy close')
+  ctx.effect(() => () => { dyHost.close().catch(() => {}) }, 'dragonfly: dy close')
 
   // 服务：只暴露三个口子（别再多了）
   // ⚠️ 必须是 `ctx.provide`，不是 `ctx.set` —— cordis 的 set 只改「已经 provide 过」的服务，
-  //    直接 set 会抛 `cannot set property "tianshuCaifeng" without provide`。
+  //    直接 set 会抛 `cannot set property "dragonfly" without provide`。
   //    provide 自己已经挂在 fiber.effect 上，卸载自动回收，这里不用再包一层。
   if (typeof ctx.provide === 'function') {
-    ctx.provide('tianshuCaifeng', {
+    ctx.provide('dragonfly', {
       status: () => service.status(),
       run: () => service.run('manual'),
       config: () => service.config,
     })
   } else {
-    log('宿主没有 ctx.provide，tianshuCaifeng 服务没挂上（工具与界面照常）')
+    log('宿主没有 ctx.provide，dragonfly 服务没挂上（工具与界面照常）')
   }
 
-  log(`采风起来了：家在 ${service.layout.home}`)
+  log(`蜻蛉起来了：家在 ${service.layout.home}`)
   void text
   void clampConfig
 }

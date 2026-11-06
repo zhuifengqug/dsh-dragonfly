@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-天枢·采风 —— B站 MCP 服务（只做值班一轮需要的 9 个工具）
+虫珀·蜻蛉 —— B站 MCP 服务（只做值班一轮需要的 9 个工具）
 ================================================================================
 这个文件是**衍生作品**：基座是上游 AGI_Ananas/bilibili-mcp（MIT，见同目录 LICENSE），
-本插件在它的实现手法上只保留采风用得着的那几条路，并加了下面这些它没有的东西。
+本插件在它的实现手法上只保留蜻蛉用得着的那几条路，并加了下面这些它没有的东西。
 **将来重新 vendor（把上游 mcp_server.py 拿回来覆盖）时，下面每一处都要原样补回来**，
 漏一处就少一道闸：
 
   ① 工具白名单 `_ALLOWED` + `tool()` 装饰器替身 + 写操作入口的 `_guard()`：
-     环境变量是 `CAIFENG_BILI_TOOLS`（逗号分隔）—— 不在名单里的工具**连名字都不会
-     出现在 list_tools 里**；`caifeng_bili_reply` 与 `caifeng_bili_dm` 的 reply 分支
+     环境变量是 `DRAGONFLY_BILI_TOOLS`（逗号分隔）—— 不在名单里的工具**连名字都不会
+     出现在 list_tools 里**；`dragonfly_bili_reply` 与 `dragonfly_bili_dm` 的 reply 分支
      入口再过一道 `_guard()`，没开就直接返回、什么都不做。
   ② 凭证容错 `load_credential()`：读 `<家目录>/creds/bili-credential.json`
      （**不是**同目录）、`encoding="utf-8"`、`OSError`/`ValueError`/非 dict 一律
@@ -17,16 +17,16 @@
   ③ 语感闸门 `_style_reason()`（只给 reply 用）：开头八股黑名单正则 +
      跟自己台账 `<家目录>/comments.md` 的 bigram 相似度 ≥0.55 + 跟这条视频热评
      相似 ≥0.5；撞了**不发**，把「为什么 + 怎么改」返回给模型。
-     `CAIFENG_STYLE_OFF=1` 可以关掉。
-  ④ `caifeng_bili_comments` 把抓取异常带进返回的 `error` 字段 ——
+     `DRAGONFLY_STYLE_OFF=1` 可以关掉。
+  ④ `dragonfly_bili_comments` 把抓取异常带进返回的 `error` 字段 ——
      风控 -412 绝不能伪装成「这条视频 0 条评论」。
-  ⑤ `caifeng_bili_reply` 的回执带上 `rpid` / `rpid_str` / `root` / `parent`
+  ⑤ `dragonfly_bili_reply` 的回执带上 `rpid` / `rpid_str` / `root` / `parent`
      （判重表与评论复核要用）。
-  ⑥ 画面帧 `caifeng_bili_frames`：**图作为 MCP image content 返回**，由宿主决定能不能
+  ⑥ 画面帧 `dragonfly_bili_frames`：**图作为 MCP image content 返回**，由宿主决定能不能
      进模型上下文（上游没有；这是本插件加的）。
-  ⑦ 窄口本地 IO：`caifeng_report_write` / `caifeng_seen` —— 固定路径、不接受路径参数、
+  ⑦ 窄口本地 IO：`dragonfly_report_write` / `dragonfly_seen` —— 固定路径、不接受路径参数、
      同一天按 id 合并、竖线转义。上游只有「追加」，这里是「合并」。
-  ⑧ 家目录从 `CAIFENG_HOME` 取（兜底 `~/.dsh/caifeng`），不再用 `Path(__file__).parent`。
+  ⑧ 家目录从 `DRAGONFLY_HOME` 取（兜底 `~/.dsh/dragonfly`），不再用 `Path(__file__).parent`。
 
 **没有做的事**（写清楚，免得下次有人以为是漏了）：
   · **不下载视频、不用 ffmpeg 裁帧**。画面一律从 B站 自带的故事板
@@ -37,9 +37,9 @@
     这些要么是运维（设置页里做），要么值班轮根本不用。
 
 工具清单（正好 9 个，多一个都不行）：
-    caifeng_bili_search / caifeng_bili_subtitle / caifeng_bili_comments /
-    caifeng_bili_frames / caifeng_bili_favorites / caifeng_bili_reply /
-    caifeng_bili_dm / caifeng_report_write / caifeng_seen
+    dragonfly_bili_search / dragonfly_bili_subtitle / dragonfly_bili_comments /
+    dragonfly_bili_frames / dragonfly_bili_favorites / dragonfly_bili_reply /
+    dragonfly_bili_dm / dragonfly_report_write / dragonfly_seen
 ================================================================================
 """
 
@@ -66,22 +66,22 @@ from bilibili_api.utils.network import Credential
 # 家目录与固定路径
 # ============================================================================
 
-CAIFENG_HOME = Path(
-    os.environ.get("CAIFENG_HOME") or (Path.home() / ".dsh" / "caifeng")
+DRAGONFLY_HOME = Path(
+    os.environ.get("DRAGONFLY_HOME") or (Path.home() / ".dsh" / "dragonfly")
 )
 
-CRED_FILE = CAIFENG_HOME / "creds" / "bili-credential.json"   # ⚠️ 在 creds/ 子目录里
-SEEN_FILE = CAIFENG_HOME / "seen.md"
-REPORTS_DIR = CAIFENG_HOME / "reports"
-OUT_DIR = CAIFENG_HOME / "out"
-COMMENTS_FILE = CAIFENG_HOME / "comments.md"
+CRED_FILE = DRAGONFLY_HOME / "creds" / "bili-credential.json"   # ⚠️ 在 creds/ 子目录里
+SEEN_FILE = DRAGONFLY_HOME / "seen.md"
+REPORTS_DIR = DRAGONFLY_HOME / "reports"
+OUT_DIR = DRAGONFLY_HOME / "out"
+COMMENTS_FILE = DRAGONFLY_HOME / "comments.md"
 
 
 # ============================================================================
 # 初始化 / 节流
 # ============================================================================
 
-mcp = FastMCP("caifeng-bili-mcp")
+mcp = FastMCP("dragonfly-bili-mcp")
 
 
 async def _throttle():
@@ -99,13 +99,13 @@ def _j(obj) -> str:
 # ============================================================================
 # 闸门 ①：工具白名单
 # ============================================================================
-# 宿主通过 overlay 的 env 下发 CAIFENG_BILI_TOOLS（逗号分隔）。
+# 宿主通过 overlay 的 env 下发 DRAGONFLY_BILI_TOOLS（逗号分隔）。
 #   · 不给这个变量 ⇒ **全放**（手工跑、或老配置）
 #   · 给了 ⇒ 只注册名单里的；名字不在名单里的工具连 list_tools 里都看不到，
 #     模型那边等于根本不存在 —— 这才是真的闸门（光靠提示词说"别用"不算）
 _ALLOWED = {
     t.strip()
-    for t in os.environ.get("CAIFENG_BILI_TOOLS", "").split(",")
+    for t in os.environ.get("DRAGONFLY_BILI_TOOLS", "").split(",")
     if t.strip()
 }
 
@@ -128,13 +128,13 @@ def _guard(name: str) -> str:
     闸门就形同虚设。所以每个**会往 B站 写东西**的函数入口都再过一遍这里。
     """
     if _ALLOWED and name not in _ALLOWED:
-        print(f"[caifeng-bili] 拒绝调用 {name}（不在 CAIFENG_BILI_TOOLS 白名单里）", file=sys.stderr)
+        print(f"[dragonfly-bili] 拒绝调用 {name}（不在 DRAGONFLY_BILI_TOOLS 白名单里）", file=sys.stderr)
         return f"这个工具没开：{name}"
     return ""
 
 
 # ============================================================================
-# 闸门 ②：语感闸门（只给 caifeng_bili_reply 用）
+# 闸门 ②：语感闸门（只给 dragonfly_bili_reply 用）
 # ============================================================================
 # 背景：章程里写"要有具体细节、别客套"，模型照样写"这条我认""值得一看"——
 #       禁令没有范例有效、自觉没有拦截可靠 ⇒ 在执行层做最后一道检查。
@@ -143,8 +143,8 @@ def _guard(name: str) -> str:
 #   ② 跟**自己以前发过的评论**太像（bigram 相似度 ≥0.55）—— 治"每条一个味"
 #   ③ 跟**这条视频现有热评**太像（≥0.5）—— 治"跟别人撞车"
 # ⚠️ 撞了就**不发**，把原因和改法返回给模型，让它重写一句。
-# ⚠️ 关掉：`CAIFENG_STYLE_OFF=1`。
-_STYLE_OFF = os.environ.get("CAIFENG_STYLE_OFF", "") in ("1", "true", "yes")
+# ⚠️ 关掉：`DRAGONFLY_STYLE_OFF=1`。
+_STYLE_OFF = os.environ.get("DRAGONFLY_STYLE_OFF", "") in ("1", "true", "yes")
 _STYLE_LEAD = re.compile(
     r"^\s*(?:"
     r"这条(?:我认|我记下了|值得)|我记下了|值得一看|确实值得|不得不说|"
@@ -153,12 +153,12 @@ _STYLE_LEAD = re.compile(
     r")"
 )
 
-# 单片笔记的开关：设置页「写单条笔记」关掉时，宿主下发 CAIFENG_NOTES=0。
+# 单片笔记的开关：设置页「写单条笔记」关掉时，宿主下发 DRAGONFLY_NOTES=0。
 #   · 没给 / 给 1 ⇒ 写（老配置与手工跑都照旧）
 #   · 给 0 ⇒ **不写**。模型就算硬塞 detail 也不落盘，正文照样进日报。
 # 为什么不读 config.json：这个进程只认宿主下发的 env —— 家目录里的 config
 # 是宿主的东西，这里再去读一遍就变成两份真源，迟早对不上。
-_NOTES_OFF = os.environ.get("CAIFENG_NOTES", "1").strip() in ("0", "false", "no")
+_NOTES_OFF = os.environ.get("DRAGONFLY_NOTES", "1").strip() in ("0", "false", "no")
 
 
 def _bigrams(s: str) -> set:
@@ -271,12 +271,12 @@ def load_credential():
         # ⚠️ 文件写坏一次（上一次写被打断）会让**所有**工具一起 JSONDecodeError：
         #    这里退化成「没登录」，重新扫一次码就能恢复。
         print(
-            f"[caifeng-bili] 凭证读不了（{type(e).__name__}: {e}）：{CRED_FILE}",
+            f"[dragonfly-bili] 凭证读不了（{type(e).__name__}: {e}）：{CRED_FILE}",
             file=sys.stderr,
         )
         return None
     if not isinstance(data, dict):
-        print(f"[caifeng-bili] 凭证不是对象：{type(data).__name__}，当作没登录", file=sys.stderr)
+        print(f"[dragonfly-bili] 凭证不是对象：{type(data).__name__}，当作没登录", file=sys.stderr)
         return None
     return Credential(
         sessdata=data.get("sessdata", ""),
@@ -489,7 +489,7 @@ def _write_text(path: Path, text: str) -> str:
 
 
 @tool()
-async def caifeng_bili_search(
+async def dragonfly_bili_search(
     keyword: str, num: int = 10, order: str = "totalrank", page: int = 1
 ) -> str:
     """
@@ -560,7 +560,7 @@ async def caifeng_bili_search(
 
 
 @tool()
-async def caifeng_bili_subtitle(bvid: str) -> str:
+async def dragonfly_bili_subtitle(bvid: str) -> str:
     """
     取一个视频的 AI 字幕全文（判断内容就靠它）
 
@@ -641,7 +641,7 @@ async def caifeng_bili_subtitle(bvid: str) -> str:
 
 
 @tool()
-async def caifeng_bili_comments(bvid: str, num: int = 30) -> str:
+async def dragonfly_bili_comments(bvid: str, num: int = 30) -> str:
     """
     取一个视频的热门评论
 
@@ -720,7 +720,7 @@ async def caifeng_bili_comments(bvid: str, num: int = 30) -> str:
 
 
 @tool()
-async def caifeng_bili_frames(bvid: str, num: int = 3, at: list | None = None) -> list:
+async def dragonfly_bili_frames(bvid: str, num: int = 3, at: list | None = None) -> list:
     """
     看这个视频里的画面（从 B站 自带的故事板里裁几帧）
 
@@ -875,7 +875,7 @@ async def caifeng_bili_frames(bvid: str, num: int = 3, at: list | None = None) -
 
 
 @tool()
-async def caifeng_bili_favorites(folder: str = "", days: int = 7) -> str:
+async def dragonfly_bili_favorites(folder: str = "", days: int = 7) -> str:
     """
     看自己的收藏夹最近收了什么（默认最近 7 天）
 
@@ -986,7 +986,7 @@ async def caifeng_bili_favorites(folder: str = "", days: int = 7) -> str:
 
 
 @tool()
-async def caifeng_bili_reply(bvid: str, text: str, rpid: int = 0, root: int = 0) -> str:
+async def dragonfly_bili_reply(bvid: str, text: str, rpid: int = 0, root: int = 0) -> str:
     """
     在视频下发一条评论，或回复某条评论
 
@@ -1001,7 +1001,7 @@ async def caifeng_bili_reply(bvid: str, text: str, rpid: int = 0, root: int = 0)
         被语感闸门拦下：{ok:false, sent:false, blocked_by:"style", error:"原因+改法"}
         异常：{success:false, error}
     """
-    deny = _guard("caifeng_bili_reply")
+    deny = _guard("dragonfly_bili_reply")
     if deny:
         return _j({"ok": False, "sent": False, "error": deny})
 
@@ -1231,7 +1231,7 @@ async def _dm_reply(uid: int, text: str, cred) -> dict:
 
 
 @tool()
-async def caifeng_bili_dm(action: str, uid: int = 0, text: str = "") -> str:
+async def dragonfly_bili_dm(action: str, uid: int = 0, text: str = "") -> str:
     """
     看 B站 私信，或在授权下回一条
 
@@ -1268,7 +1268,7 @@ async def caifeng_bili_dm(action: str, uid: int = 0, text: str = "") -> str:
 
     if act == "reply":
         # ⭐ 会往 B站 写东西 ⇒ 入口再过一道闸
-        deny = _guard("caifeng_bili_dm")
+        deny = _guard("dragonfly_bili_dm")
         if deny:
             return _j({"ok": False, "error": deny})
         target = int(uid or 0)
@@ -1394,7 +1394,7 @@ def _load_json_arg(raw, name: str):
 
 
 @tool()
-def caifeng_report_write(date: str = "", entries: str = "", skipped: str = "", note: str = "") -> str:
+def dragonfly_report_write(date: str = "", entries: str = "", skipped: str = "", note: str = "") -> str:
     """
     把条目写进今天的日报（按 id 合并，不覆盖）
 
@@ -1740,7 +1740,7 @@ def _mark_row(lines: list, section: str, vid: str, new_line: str, day: str) -> s
 
 
 @tool()
-def caifeng_seen(check: str = "", mark: str = "") -> str:
+def dragonfly_seen(check: str = "", mark: str = "") -> str:
     """
     查判重表 / 往判重表里记一条
 

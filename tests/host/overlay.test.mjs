@@ -31,7 +31,7 @@ function makeLayout(home) {
 
 /** 造一个最小的家目录：有 mcp_server.py、有 dy 桥 */
 function makeHome({ withMcp = true, withBridge = true } = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'caifeng-overlay-'))
+  const home = mkdtempSync(join(tmpdir(), 'dragonfly-overlay-'))
   if (withMcp) writeFileSync(join(home, 'mcp_server.py'), '# fake\n', 'utf8')
   if (withBridge) {
     mkdirSync(join(home, 'dy'), { recursive: true })
@@ -46,8 +46,8 @@ function run(home, cfg, opts = {}) {
   const layout = makeLayout(home)
   const r = ensureOverlay(CTX, layout, cfg, {
     log: () => {},
-    biliTools: ['caifeng_bili_search', 'caifeng_report_write'],
-    dyTools: ['caifeng_dy_open'],
+    biliTools: ['dragonfly_bili_search', 'dragonfly_report_write'],
+    dyTools: ['dragonfly_dy_open'],
     dyBridge: join(home, 'dy', 'bridge.mjs'),
     ...opts,
   })
@@ -100,25 +100,25 @@ test('两条 MCP 都插上时环境变量一个不多一个不少', () => {
     assert.equal(r.skipped.length, 0)
 
     // B站 那条
-    assert.match(text, /- id: mcp-caifeng-bili/)
-    assert.match(text, /serverName: caifeng-bili/)
+    assert.match(text, /- id: mcp-dragonfly-bili/)
+    assert.match(text, /serverName: dragonfly-bili/)
     assert.match(text, /command: 'D:\/py\/python\.exe'/)
-    assert.match(text, /CAIFENG_HOME: '.*'/)
-    assert.match(text, /CAIFENG_BILI_TOOLS: 'caifeng_bili_search,caifeng_report_write'/)
-    assert.match(text, /CAIFENG_NOTES: '1'/)
+    assert.match(text, /DRAGONFLY_HOME: '.*'/)
+    assert.match(text, /DRAGONFLY_BILI_TOOLS: 'dragonfly_bili_search,dragonfly_report_write'/)
+    assert.match(text, /DRAGONFLY_NOTES: '1'/)
 
     // 抖音 那条
-    assert.match(text, /- id: mcp-caifeng-dy/)
-    assert.match(text, /serverName: caifeng-dy/)
-    assert.match(text, /CAIFENG_TOOLS: 'caifeng_dy_open'/)
+    assert.match(text, /- id: mcp-dragonfly-dy/)
+    assert.match(text, /serverName: dragonfly-dy/)
+    assert.match(text, /DRAGONFLY_TOOLS: 'dragonfly_dy_open'/)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
-test('关掉「写单条笔记」⇒ CAIFENG_NOTES 下发 0（Python 那边据此不落盘）', () => {
+test('关掉「写单条笔记」⇒ DRAGONFLY_NOTES 下发 0（Python 那边据此不落盘）', () => {
   const home = makeHome()
   try {
     const { text } = run(home, { pythonPath: 'D:/py/python.exe', notesEnabled: false })
-    assert.match(text, /CAIFENG_NOTES: '0'/)
+    assert.match(text, /DRAGONFLY_NOTES: '0'/)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
@@ -127,8 +127,8 @@ test('没装 Python ⇒ 只插抖音那条，并把原因记下来（不悄悄�
   try {
     const { r, text } = run(home, { pythonPath: '' })
     assert.equal(r.mcp, 1, '只该插上抖音那条')
-    assert.match(text, /- id: mcp-caifeng-dy/)
-    assert.doesNotMatch(text, /- id: mcp-caifeng-bili/)
+    assert.match(text, /- id: mcp-dragonfly-dy/)
+    assert.doesNotMatch(text, /- id: mcp-dragonfly-bili/)
     const why = r.skipped.map((s) => s.why).join('；')
     assert.match(why, /Python/)
   } finally { rmSync(home, { recursive: true, force: true }) }
@@ -149,7 +149,7 @@ test('抖音桥不在包里 ⇒ 只插 B站 那条', () => {
   try {
     const { r, text } = run(home, { pythonPath: 'D:/py/python.exe' })
     assert.equal(r.mcp, 1)
-    assert.doesNotMatch(text, /- id: mcp-caifeng-dy/)
+    assert.doesNotMatch(text, /- id: mcp-dragonfly-dy/)
     assert.match(r.skipped.map((s) => s.why).join('；'), /抖音桥/)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
@@ -159,8 +159,8 @@ test('信源关掉 ⇒ 那条 MCP 就不插（关掉不是"章程里嘱咐一句
   try {
     const { r, text } = run(home, { pythonPath: 'D:/py/python.exe', sources: { bili: false, douyin: true } })
     assert.equal(r.mcp, 1)
-    assert.doesNotMatch(text, /- id: mcp-caifeng-bili/)
-    assert.match(text, /- id: mcp-caifeng-dy/)
+    assert.doesNotMatch(text, /- id: mcp-dragonfly-bili/)
+    assert.match(text, /- id: mcp-dragonfly-dy/)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
@@ -220,13 +220,13 @@ test('effectiveModel：什么都取不到时也给一个能跑的，不是空', 
  * 所以会话列表里看它「没有工作区」。填了工作区就该用工作区。
  */
 test('dutyCwd：没填就用数据目录', () => {
-  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'caifeng-cwd-')))
+  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'dragonfly-cwd-')))
   assert.equal(dutyCwd({}, layout), layout.home)
   assert.equal(dutyCwd({ workspaceDir: '   ' }, layout), layout.home)
 })
 
 test('dutyCwd：填了绝对路径就用它，目录不存在会先建出来', () => {
-  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'caifeng-cwd-')))
+  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'dragonfly-cwd-')))
   const wanted = join(layout.home, '值班室')
   assert.equal(existsSync(wanted), false)
   assert.equal(dutyCwd({ workspaceDir: wanted }, layout), wanted)
@@ -234,6 +234,6 @@ test('dutyCwd：填了绝对路径就用它，目录不存在会先建出来', (
 })
 
 test('dutyCwd：相对路径不认（会跟着宿主进程的 cwd 漂，等于没填）', () => {
-  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'caifeng-cwd-')))
+  const layout = makeLayout(mkdtempSync(join(tmpdir(), 'dragonfly-cwd-')))
   assert.equal(dutyCwd({ workspaceDir: 'some/relative/dir' }, layout), layout.home)
 })

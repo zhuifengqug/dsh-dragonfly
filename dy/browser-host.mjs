@@ -170,7 +170,7 @@ export function findEdgeExecutable(env = process.env, exists = existsSync) {
  * 为什么不能只写 `import('playwright-core')`：本插件自己不带这个依赖（它 60MB+，
  * 而且得跟宿主 Electron 的 shim 版本对上），宿主那棵树里也未必有。真正装着它的
  * 是**别的 profile**（刷抖音那套靠传递依赖拿到的）。所以按下面的顺序找：
- *   ① 环境变量 CAIFENG_PLAYWRIGHT 指过去（模块目录或入口文件都行）
+ *   ① 环境变量 DRAGONFLY_PLAYWRIGHT 指过去（模块目录或入口文件都行）
  *   ② 插件自己 node_modules 里（npm i playwright-core 之后）
  *   ③ 每个 `<DSH_HOME>/profiles/<名>/node_modules/playwright-core`
  *   ④ 宿主 npm 全局树
@@ -180,7 +180,7 @@ export function findEdgeExecutable(env = process.env, exists = existsSync) {
 export function candidatePlaywrightRoots() {
   const out = []
   const push = (p) => { if (p && !out.includes(p)) out.push(p) }
-  const env = process.env.CAIFENG_PLAYWRIGHT || process.env.PLAYWRIGHT_CORE_PATH
+  const env = process.env.DRAGONFLY_PLAYWRIGHT || process.env.PLAYWRIGHT_CORE_PATH
   if (env) push(env)
   // 插件自己
   // 用 fileURLToPath 而不是 URL.pathname：后者会把中文目录百分号编码，
@@ -243,7 +243,7 @@ export async function loadPlaywright() {
       hint:
         '没找到 playwright-core，专用 Edge 起不来（所以这一轮读不了抖音）。' +
         '任选一样：① 在插件目录执行 `npm i playwright-core`；' +
-        '② 设环境变量 CAIFENG_PLAYWRIGHT=<playwright-core 目录>；' +
+        '② 设环境变量 DRAGONFLY_PLAYWRIGHT=<playwright-core 目录>；' +
         '③ 确保有某个 profile（比如装了刷抖音那个）里带着它。' +
         `（找过：${tried.slice(0, 4).join('；') || '无'}）`,
       tried,

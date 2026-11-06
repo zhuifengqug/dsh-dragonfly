@@ -100,7 +100,7 @@ export async function state({ controller } = {}) {
     if (snapshot?.unsupportedPage) {
       return failure(
         'unsupported-page',
-        '当前专用标签页不在抖音上，读不到内容。先用 caifeng_dy_open 打开首页或搜索页。',
+        '当前专用标签页不在抖音上，读不到内容。先用 dragonfly_dy_open 打开首页或搜索页。',
         { state: snapshot },
       )
     }
@@ -178,7 +178,7 @@ export async function frames({ seconds, controller } = {}) {
   })
 }
 
-/** 给宿主 HTTP 路由用的一张表：`/api/caifeng/dy/<action>` 直接查 */
+/** 给宿主 HTTP 路由用的一张表：`/api/dragonfly/dy/<action>` 直接查 */
 export const DY_ACTIONS = Object.freeze({ open, state, next, frames })
 
 /** MCP 桥也用这张表判断「这个名字认不认」 */

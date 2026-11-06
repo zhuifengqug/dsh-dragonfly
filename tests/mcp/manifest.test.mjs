@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const bridge = join(repo, 'dy', 'mcp-bridge.mjs')
-const python = join(repo, 'vendor', 'caifeng-bili-mcp', 'server.py')
+const python = join(repo, 'vendor', 'dragonfly-bili-mcp', 'server.py')
 
 /** 起一次桥，喂几条 JSON-RPC，收所有回包 */
 function talk({ env = {}, messages, timeoutMs = 15000 }) {
@@ -56,7 +56,7 @@ const INIT = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVe
 const READY = { jsonrpc: '2.0', method: 'notifications/initialized' }
 const LIST = { jsonrpc: '2.0', id: 2, method: 'tools/list' }
 
-const ALL_DY = ['caifeng_dy_open', 'caifeng_dy_state', 'caifeng_dy_next', 'caifeng_dy_frames']
+const ALL_DY = ['dragonfly_dy_open', 'dragonfly_dy_state', 'dragonfly_dy_next', 'dragonfly_dy_frames']
 
 test('抖音桥：白名单为空时四个工具都在', async () => {
   const { replies } = await talk({ messages: [INIT, READY, LIST] })
@@ -67,15 +67,15 @@ test('抖音桥：白名单为空时四个工具都在', async () => {
 
 test('抖音桥：白名单只留两个，另外两个连名字都不出现', async () => {
   const { replies } = await talk({
-    env: { CAIFENG_TOOLS: 'caifeng_dy_open,caifeng_dy_frames' },
+    env: { DRAGONFLY_TOOLS: 'dragonfly_dy_open,dragonfly_dy_frames' },
     messages: [INIT, READY, LIST],
   })
   const listed = replies.find((r) => r.id === 2)
-  assert.deepEqual(listed.result.tools.map((t) => t.name).sort(), ['caifeng_dy_frames', 'caifeng_dy_open'])
+  assert.deepEqual(listed.result.tools.map((t) => t.name).sort(), ['dragonfly_dy_frames', 'dragonfly_dy_open'])
 })
 
 test('抖音桥：名单为空串等同于没设（四个都开）', async () => {
-  const { replies } = await talk({ env: { CAIFENG_TOOLS: '' }, messages: [INIT, READY, LIST] })
+  const { replies } = await talk({ env: { DRAGONFLY_TOOLS: '' }, messages: [INIT, READY, LIST] })
   const listed = replies.find((r) => r.id === 2)
   assert.equal(listed.result.tools.length, 4)
 })
@@ -103,10 +103,10 @@ test('抖音桥：没写 host.json 时调用是结构化失败，不是崩', asy
   // 家目录指向一个空的临时目录 ⇒ 必然没有 dy/control/host.json
   const home = join(repo, 'tmp', 'no-such-home-for-test')
   const { replies } = await talk({
-    env: { CAIFENG_HOME: home },
+    env: { DRAGONFLY_HOME: home },
     messages: [
       INIT, READY,
-      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'caifeng_dy_state', arguments: {} } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'dragonfly_dy_state', arguments: {} } },
     ],
   })
   const call = replies.find((r) => r.id === 3)
@@ -120,40 +120,40 @@ test('B站 MCP：@tool() 装饰的正好九个，名字跟命名清单对得上'
   const source = readFileSync(python, 'utf8')
   const names = [...source.matchAll(/^@tool\(\)\s*\n\s*(?:async\s+)?def\s+([a-z0-9_]+)/gm)].map((m) => m[1])
   assert.deepEqual(names.sort(), [
-    'caifeng_bili_comments',
-    'caifeng_bili_dm',
-    'caifeng_bili_favorites',
-    'caifeng_bili_frames',
-    'caifeng_bili_reply',
-    'caifeng_bili_search',
-    'caifeng_bili_subtitle',
-    'caifeng_report_write',
-    'caifeng_seen',
+    'dragonfly_bili_comments',
+    'dragonfly_bili_dm',
+    'dragonfly_bili_favorites',
+    'dragonfly_bili_frames',
+    'dragonfly_bili_reply',
+    'dragonfly_bili_search',
+    'dragonfly_bili_subtitle',
+    'dragonfly_report_write',
+    'dragonfly_seen',
   ])
   // 命名清单里没有的东西，一个都不许冒出来
-  assert.doesNotMatch(source, /def\s+caifeng_bili_cover/)
-  assert.doesNotMatch(source, /def\s+caifeng_paths/)
+  assert.doesNotMatch(source, /def\s+dragonfly_bili_cover/)
+  assert.doesNotMatch(source, /def\s+dragonfly_paths/)
 })
 
 test('B站 MCP：白名单与语感闸门的开关环境变量名没写歪', () => {
   const source = readFileSync(python, 'utf8')
-  assert.match(source, /CAIFENG_BILI_TOOLS/, '白名单变量名必须是 CAIFENG_BILI_TOOLS')
-  assert.match(source, /CAIFENG_STYLE_OFF/, '语感闸门的开关变量名必须是 CAIFENG_STYLE_OFF')
-  assert.match(source, /CAIFENG_HOME/, '家目录变量名必须是 CAIFENG_HOME')
+  assert.match(source, /DRAGONFLY_BILI_TOOLS/, '白名单变量名必须是 DRAGONFLY_BILI_TOOLS')
+  assert.match(source, /DRAGONFLY_STYLE_OFF/, '语感闸门的开关变量名必须是 DRAGONFLY_STYLE_OFF')
+  assert.match(source, /DRAGONFLY_HOME/, '家目录变量名必须是 DRAGONFLY_HOME')
   assert.match(source, /creds["'\/\\]+bili-credential\.json|"creds"[\s\S]{0,40}bili-credential\.json/,
     '凭证要从 <家>/creds/bili-credential.json 读')
 })
 
-test('B站 MCP：单片笔记受 CAIFENG_NOTES 管，关掉就不落盘', () => {
+test('B站 MCP：单片笔记受 DRAGONFLY_NOTES 管，关掉就不落盘', () => {
   const source = readFileSync(python, 'utf8')
-  assert.match(source, /CAIFENG_NOTES/, '单片笔记的开关变量名必须是 CAIFENG_NOTES')
+  assert.match(source, /DRAGONFLY_NOTES/, '单片笔记的开关变量名必须是 DRAGONFLY_NOTES')
   // 落盘那行必须带着开关判断，否则"关了还在写"这件事会静默发生
   assert.match(source, /if vid and detail and not _NOTES_OFF:/,
     'detail 落盘必须同时看 _NOTES_OFF')
 })
 
 test('两份 requirements 里的 mcp 都锁在 1.x（2.x 起不来）', () => {
-  const req = readFileSync(join(repo, 'vendor', 'caifeng-bili-mcp', 'requirements.txt'), 'utf8')
+  const req = readFileSync(join(repo, 'vendor', 'dragonfly-bili-mcp', 'requirements.txt'), 'utf8')
   const line = req.split('\n').find((l) => /^mcp\b/i.test(l.trim()))
   assert.ok(line, 'requirements.txt 里没有 mcp')
   assert.match(line, /<\s*2/, `mcp 必须锁 <2，实际：${line}`)

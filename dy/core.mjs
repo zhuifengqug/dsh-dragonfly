@@ -12,7 +12,7 @@
 import { controlPaths, readPortRecord, ensureBrowser, loadPlaywright } from './browser-host.mjs'
 
 /** 我们标记自己页面的写法：只操作 window.name 等于它的那张 */
-export const DY_PAGE_NAME = 'caifeng-dy'
+export const DY_PAGE_NAME = 'dragonfly-dy'
 
 /** 抖音的合法原点（离开它就当「不是我们的页面」处理） */
 const DOUYIN_ORIGIN = 'https://www.douyin.com'
@@ -508,7 +508,7 @@ export class BrowserController {
 
   /**
    * 换一条：优先点箭头，点不动就滚轮。
-   * 🔴 只认 isTrusted：注入 `window.__caifengSwitchInputs[token]` 计数，
+   * 🔴 只认 isTrusted：注入 `window.__dragonflySwitchInputs[token]` 计数，
    *    点完计数没涨就认定「这次输入被页面拦了」，改滚轮回退。
    */
   async switchVideo(direction) {
@@ -523,7 +523,7 @@ export class BrowserController {
       return { changed: false, before: before.video, after: before.video, state: before, reasonCode: 'switch-blocked' }
     }
 
-    const token = `caifeng-switch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const token = `dragonfly-switch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
     const selector = `[data-e2e="video-switch-${direction > 0 ? 'next' : 'prev'}-arrow"]`
 
     await page.evaluate(pageFn(installSwitchCounterSource, 'installSwitchCounter'), { token, selector })
@@ -694,7 +694,7 @@ export class BrowserController {
     const first = await this.state()
     const videoId = first.video?.id ?? null
     if (first.unsupportedPage) {
-      return { ok: false, reason: 'unsupported-page', hint: '当前页不在抖音，没截图。先用 caifeng_dy_open 打开。', images: [] }
+      return { ok: false, reason: 'unsupported-page', hint: '当前页不在抖音，没截图。先用 dragonfly_dy_open 打开。', images: [] }
     }
     if (first.loginRequired || first.verificationRequired) {
       return { ok: false, reason: 'blocked', hint: '页面停在登录或验证上，截不到视频画面。先去专用窗口里处理掉。', images: [] }
@@ -768,9 +768,9 @@ export class BrowserController {
  */
 const installSwitchCounterSource = String.raw`function installSwitchCounter(args) {
   var token = args.token, selector = args.selector;
-  window.__caifengSwitchInputs = window.__caifengSwitchInputs || Object.create(null);
+  window.__dragonflySwitchInputs = window.__dragonflySwitchInputs || Object.create(null);
   var entry = { trusted: 0, blocked: false, cleanup: null };
-  window.__caifengSwitchInputs[token] = entry;
+  window.__dragonflySwitchInputs[token] = entry;
   var types = ['pointerdown', 'mousedown', 'mouseup', 'click', 'wheel'];
   var listener = function (event) {
     if (event.isTrusted !== true) { entry.blocked = true; return; }
@@ -786,21 +786,21 @@ const installSwitchCounterSource = String.raw`function installSwitchCounter(args
   }
   entry.cleanup = function () {
     for (var i = 0; i < types.length; i++) document.removeEventListener(types[i], listener, true);
-    delete window.__caifengSwitchInputs[token];
+    delete window.__dragonflySwitchInputs[token];
   };
   return { ok: true };
 }`
 
 /** 页面内：读计数器 */
 const readSwitchCounterSource = String.raw`function readSwitchCounter(token) {
-  var entry = window.__caifengSwitchInputs && window.__caifengSwitchInputs[token];
+  var entry = window.__dragonflySwitchInputs && window.__dragonflySwitchInputs[token];
   if (!entry) return { trusted: 0, blocked: false, missing: true };
   return { trusted: entry.trusted, blocked: entry.blocked };
 }`
 
 /** 页面内：拆掉监听 */
 const cleanupSwitchCounterSource = String.raw`function cleanupSwitchCounter(token) {
-  var entry = window.__caifengSwitchInputs && window.__caifengSwitchInputs[token];
+  var entry = window.__dragonflySwitchInputs && window.__dragonflySwitchInputs[token];
   if (entry && typeof entry.cleanup === 'function') entry.cleanup();
   return { ok: true };
 }`

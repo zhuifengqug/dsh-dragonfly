@@ -217,7 +217,7 @@ test('diffKeys 只报真变了的键', () => {
 
 test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建）', () => {
   assert.equal(clampConfig({}).workspaceDir, '', '默认空 = 用数据目录')
-  assert.equal(clampConfig({ workspaceDir: '  D:\\dsh-workspaces\\采风值班  ' }).workspaceDir, 'D:\\dsh-workspaces\\采风值班')
+  assert.equal(clampConfig({ workspaceDir: '  D:\\dsh-workspaces\\蜻蛉值班  ' }).workspaceDir, 'D:\\dsh-workspaces\\蜻蛉值班')
   assert.equal(clampConfig({ workspaceDir: null }).workspaceDir, '')
   assert.equal(clampConfig({ workspaceDir: 7 }).workspaceDir, '7')
   const long = 'x'.repeat(900)

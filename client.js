@@ -6,21 +6,21 @@
  *     window.__ModuleLoader__.load({ id: '<包名>', factory: (require) => { ... } })
  *
  * ⭐ 两个入口一起注册，缺一个就进不去：
- *     · `sidebar.panellist`（id `caifeng`）—— 侧栏那个按钮，没它就**没有入口**
- *     · `main`（keyed `caifeng`）—— 主区整页，key 必须跟侧栏那个 id 对上
- *     · `settings.section`（id `caifeng`）—— 设置页里的一页
+ *     · `sidebar.panellist`（id `dragonfly`）—— 侧栏那个按钮，没它就**没有入口**
+ *     · `main`（keyed `dragonfly`）—— 主区整页，key 必须跟侧栏那个 id 对上
+ *     · `settings.section`（id `dragonfly`）—— 设置页里的一页
  *
- * 数据全走 fetch(`/api/caifeng/*`)，跟宿主半端同一份 config.json / out/<日期>.md。
+ * 数据全走 fetch(`/api/dragonfly/*`)，跟宿主半端同一份 config.json / out/<日期>.md。
  * ============================================================================
  */
 window.__ModuleLoader__.load({
-  id: '@zhuifengqug/dsh-tianshu-caifeng',
+  id: '@zhuifengqug/dsh-dragonfly',
   factory: (require) => {
     const React = require('react')
     const h = React.createElement
     const { useState, useEffect, useMemo, useCallback, useRef } = React
 
-    const API = '/api/caifeng'
+    const API = '/api/dragonfly'
 
     /* ⚠️ 必须看 res.ok：直接把 500 的 {ok:false} 当成功，绿色提示会把故障盖掉 */
     const asJson = async (res) => {
@@ -111,6 +111,10 @@ window.__ModuleLoader__.load({
 [data-cf-head] [data-cf-page]{padding-bottom:0;}
 [data-cf-body]{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 2px 18px;}
 [data-cf-body] [data-cf-page]{padding-top:0;}
+/* 主区那一页（点侧栏「蜻蛉」进来的）要跟顶栏一样铺满：不压宽度、左右留 16px。
+   「设置」页不在此列 —— 它是表单，仍旧压到 640 的窄栏，拉满全宽反而难读。 */
+[data-cf-main] [data-cf-page]{padding-left:16px;padding-right:16px;}
+[data-cf-main] [data-cf-page][data-cf-wide]{max-width:none;}
 /* 会话顶部那一块要铺满，跟「轨迹」那个上游视图一样：占满 viewArea、自己滚。
    难点在宿主这层 —— 那个 viewArea 在 data-phase=active 时是
    flex:1 0 auto + min-height:auto，也就是「高度跟着内容长」，子元素写
@@ -722,7 +726,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           h(Row, null,
             h('div', { 'data-cf-grow': '' }, h('div', { 'data-cf-label': '' }, '侧栏留个入口')),
             h(Switch, { on: Boolean(val('showSidebar')), onChange: (v) => set('showSidebar', v) })),
-          h(Note, null, '关掉之后侧栏就没有「采风」这个按钮了 —— 主区页还能从会话顶部那块进来。'),
+          h(Note, null, '关掉之后侧栏就没有「蜻蛉」这个按钮了 —— 主区页还能从会话顶部那块进来。'),
 
           h(Row, null,
             h('div', { 'data-cf-grow': '' }, h('div', { 'data-cf-label': '' }, '会话顶部挂「今天」')),
@@ -770,7 +774,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
         refresh()
       }, [refresh])
 
-      return h('div', { 'data-cf-shell': '' },
+      return h('div', { 'data-cf-shell': '', 'data-cf-main': '' },
         h(StyleTag, null),
         h('div', { 'data-cf-head': '' },
           h('div', { 'data-cf-page': '', 'data-cf-wide': tab === 'today' ? '' : undefined },
@@ -834,7 +838,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
      * 描边 `currentColor`、16px、1.5 —— 跟宿主那几个图标同一套语言。
      */
     function SidebarEntry() {
-      return h('span', { title: '采风', 'aria-label': '采风', role: 'img', 'data-cf-icon': '' },
+      return h('span', { title: '蜻蛉', 'aria-label': '蜻蛉', role: 'img', 'data-cf-icon': '' },
         h('svg', {
           viewBox: '0 0 16 16', width: 16, height: 16, fill: 'none',
           stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': 'true',
@@ -892,17 +896,17 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
 
         // 主区页与设置页一直挂 —— 它们是「怎么进来」的两条腿，不随显示开关消失
         const always = {
-          main: () => slots.register({ name: 'main', key: 'caifeng', label: '采风' }, MainPanel),
+          main: () => slots.register({ name: 'main', key: 'dragonfly', label: '蜻蛉' }, MainPanel),
           'settings.section': () => slots.register({
-            name: 'settings.section', id: 'caifeng', order: 60, label: '采风',
+            name: 'settings.section', id: 'dragonfly', order: 60, label: '蜻蛉',
           }, SettingsSection),
         }
         const optional = {
           'sidebar.panellist': () => slots.register({
-            name: 'sidebar.panellist', id: 'caifeng', order: 100, label: '采风',
+            name: 'sidebar.panellist', id: 'dragonfly', order: 100, label: '蜻蛉',
           }, SidebarEntry),
           'conversation.view': () => slots.register({
-            name: 'conversation.view', id: 'caifeng-today', order: 20, scope: 'session', label: '采风',
+            name: 'conversation.view', id: 'dragonfly-today', order: 20, scope: 'session', label: '蜻蛉',
           }, ConversationPanel),
         }
 
@@ -939,7 +943,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           for (const fn of [...cleanups].reverse()) {
             try { fn?.() } catch { /* ignore */ }
           }
-        }, 'caifeng: slots')
+        }, 'dragonfly: slots')
       },
     }
   },

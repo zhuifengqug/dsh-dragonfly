@@ -8,13 +8,13 @@
  *
  *   duty 里的模型
  *     → MCP stdio（本文件，一行一条 JSON-RPC）
- *     → HTTP POST <baseUrl>/api/caifeng/dy/<action>
+ *     → HTTP POST <baseUrl>/api/dragonfly/dy/<action>
  *     → 宿主进程里的 BrowserController
  *     → 专用 Edge
  *
  * 两个约束（别改）：
  *   1. 不装任何依赖。手写最小 JSON-RPC，`@modelcontextprotocol/sdk` 一律不碰。
- *   2. 白名单在**注册层**生效：`CAIFENG_TOOLS` 里没有的工具，list_tools 里根本不出现。
+ *   2. 白名单在**注册层**生效：`DRAGONFLY_TOOLS` 里没有的工具，list_tools 里根本不出现。
  * ============================================================================
  */
 import { readFileSync } from 'node:fs'
@@ -23,7 +23,7 @@ import { pathToFileURL } from 'node:url'
 import { createInterface } from 'node:readline'
 
 const PROTOCOL_VERSION = '2024-11-05'
-const SERVER_INFO = { name: 'caifeng-dy', version: '0.1.0' }
+const SERVER_INFO = { name: 'dragonfly-dy', version: '0.1.0' }
 const REQUEST_TIMEOUT_MS = 120_000
 
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ const REQUEST_TIMEOUT_MS = 120_000
 // ---------------------------------------------------------------------------
 const TOOL_CATALOG = [
   {
-    name: 'caifeng_dy_open',
+    name: 'dragonfly_dy_open',
     action: 'open',
     description:
       '打开抖音网页并读出这一页的状态。'
@@ -51,7 +51,7 @@ const TOOL_CATALOG = [
     },
   },
   {
-    name: 'caifeng_dy_state',
+    name: 'dragonfly_dy_state',
     action: 'state',
     description:
       '读当前抖音页面此刻的状态，不改变页面。'
@@ -62,7 +62,7 @@ const TOOL_CATALOG = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
-    name: 'caifeng_dy_next',
+    name: 'dragonfly_dy_next',
     action: 'next',
     description:
       '换到下一条视频（相当于在推荐流里往下滑一次）。'
@@ -72,7 +72,7 @@ const TOOL_CATALOG = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
-    name: 'caifeng_dy_frames',
+    name: 'dragonfly_dy_frames',
     action: 'frames',
     description:
       '截取当前视频正在播放的画面（几张静态图，不是录视频）。'
@@ -96,7 +96,7 @@ const TOOL_CATALOG = [
 ]
 
 /**
- * 白名单：环境变量 `CAIFENG_TOOLS`，逗号分隔。
+ * 白名单：环境变量 `DRAGONFLY_TOOLS`，逗号分隔。
  * 空 / 没设 ⇒ 全放。名单里有的才注册；名单外的连 list_tools 都不出现。
  */
 export function selectTools(catalog, raw) {
@@ -112,12 +112,12 @@ export function selectTools(catalog, raw) {
 // 宿主地址：`<home>/dy/control/host.json` 里的 {baseUrl, token}
 // ---------------------------------------------------------------------------
 export function homeDir(env = process.env) {
-  return env.CAIFENG_HOME || env.CAIFENG_HOME_DIR || ''
+  return env.DRAGONFLY_HOME || env.DRAGONFLY_HOME_DIR || ''
 }
 
 export function readHostRecord(home) {
   if (!home) {
-    return { ok: false, reason: 'no-home', hint: '没拿到家目录（CAIFENG_HOME 是空的），找不到宿主地址。' }
+    return { ok: false, reason: 'no-home', hint: '没拿到家目录（DRAGONFLY_HOME 是空的），找不到宿主地址。' }
   }
   const file = join(home, 'dy', 'control', 'host.json')
   let raw
@@ -148,14 +148,14 @@ export function readHostRecord(home) {
 // 转发
 // ---------------------------------------------------------------------------
 async function postAction(record, action, payload) {
-  const url = `${record.baseUrl}/api/caifeng/dy/${action}`
+  const url = `${record.baseUrl}/api/dragonfly/dy/${action}`
   let response
   try {
     response = await fetch(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(record.token ? { 'x-caifeng-token': record.token } : {}),
+        ...(record.token ? { 'x-dragonfly-token': record.token } : {}),
       },
       body: JSON.stringify(payload ?? {}),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -177,7 +177,7 @@ async function postAction(record, action, payload) {
     return {
       ok: false,
       reason: 'host-bad-response',
-      hint: `宿主回了非 JSON（HTTP ${response.status}）。看一下宿主日志里 /api/caifeng/dy/${action} 那段。`,
+      hint: `宿主回了非 JSON（HTTP ${response.status}）。看一下宿主日志里 /api/dragonfly/dy/${action} 那段。`,
       detail: text.slice(0, 300),
     }
   }
@@ -304,11 +304,11 @@ function createServer({ tools, home, log = () => {} }) {
 
 function main() {
   const home = homeDir()
-  const tools = selectTools(TOOL_CATALOG, process.env.CAIFENG_TOOLS)
-  const log = (line) => process.stderr.write(`[caifeng-dy] ${line}\n`)
+  const tools = selectTools(TOOL_CATALOG, process.env.DRAGONFLY_TOOLS)
+  const log = (line) => process.stderr.write(`[dragonfly-dy] ${line}\n`)
   if (!tools.length) {
     // 名单里一个都不认：照常起服务，list_tools 回空数组，让上层看到「今天没开抖音」
-    log('CAIFENG_TOOLS 名单里没有可注册的工具，list_tools 将回空。')
+    log('DRAGONFLY_TOOLS 名单里没有可注册的工具，list_tools 将回空。')
   }
   const server = createServer({ tools, home, log })
 
