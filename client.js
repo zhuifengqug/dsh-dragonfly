@@ -843,8 +843,12 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           viewBox: '0 0 16 16', width: 16, height: 16, fill: 'none',
           stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': 'true',
         },
-        h('circle', { cx: 8, cy: 8, r: 6.1 }),
-        h('path', { d: 'M10.4 5.6 9.2 9.2 5.6 10.4 6.8 6.8z', fill: 'currentColor', stroke: 'none' })))
+        h('circle', { cx: 8, cy: 4, r: 1.1, fill: 'currentColor', stroke: 'none' }),
+        h('path', { d: 'M8 5.1V13.4' }),
+        h('ellipse', { cx: 4.7, cy: 6.2, rx: 3, ry: 1, transform: 'rotate(-18 4.7 6.2)' }),
+        h('ellipse', { cx: 11.3, cy: 6.2, rx: 3, ry: 1, transform: 'rotate(18 11.3 6.2)' }),
+        h('ellipse', { cx: 5, cy: 8.8, rx: 2.3, ry: 0.8, transform: 'rotate(12 5 8.8)' }),
+        h('ellipse', { cx: 11, cy: 8.8, rx: 2.3, ry: 0.8, transform: 'rotate(-12 11 8.8)' })))
     }
 
     // 会话顶部那一块：只读，「今天」的精简版。
