@@ -6,7 +6,7 @@
 
 ### Issue tracker
 
-Issue 与 spec 都放在 GitHub Issues（`zhuifengqug/dragonfly`），统一走 `gh` CLI。见 `docs/agents/issue-tracker.md`。
+Issue 与 spec 都放在 GitHub Issues（`zhuifengqug/dsh-dragonfly`），统一走 `gh` CLI。见 `docs/agents/issue-tracker.md`。
 
 ### Triage labels
 

@@ -4,7 +4,7 @@
   "plugin": {
     "namespace": "zhuifengqug",
     "name": "dragonfly",
-    "coordinate": "zhuifengqug/dragonfly",
+    "coordinate": "zhuifengqug/dsh-dragonfly",
     "packageName": "@zhuifengqug/dsh-dragonfly"
   },
   "names": {

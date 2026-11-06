@@ -12,7 +12,7 @@
 |---|---|
 | 中文名 | 虫珀·蜻蛉 |
 | 插件名 | `dragonfly` |
-| coordinate | `zhuifengqug/dragonfly` |
+| coordinate | `zhuifengqug/dsh-dragonfly` |
 | 包名 | `@zhuifengqug/dsh-dragonfly` |
 | loader id | `zhuifengqug-dragonfly` |
 | 命令 | `/dragonfly` |
