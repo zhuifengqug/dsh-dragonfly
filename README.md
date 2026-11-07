@@ -49,13 +49,13 @@ dsh plugin --profile desktop add link:D:/dsh-workspaces/dev/虫珀/蜻蛉
 
 包里有 `dsh.bundle.patch`，装上会自动进 profile 的 `dsh.profile.bundles`。装完重启宿主，设置页里就有「蜻蛉」。
 
-### npm
+### npm（换机器 / 给别人装）
 
 ```powershell
 dsh plugin --profile desktop add @zhuifengqug/dsh-dragonfly
 ```
 
-（目前还没发布到 npm，先走上面本地目录那条路。）
+已发布到 npm，当前版本 `0.1.3`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.3`；升级时把版本号换成新的，再执行一次同样的命令。
 
 ### 第一次用
 
