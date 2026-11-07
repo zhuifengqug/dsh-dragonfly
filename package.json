@@ -19,7 +19,6 @@
     "locale/*.json",
     "icon.svg",
     "lib/**/*.mjs",
-    "bili/**/*.mjs",
     "dy/**/*.mjs",
     "prompts",
     "profile-template",
