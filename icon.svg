@@ -1,18 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="虫珀·蜻蛉">
-  <g transform="translate(48 48) scale(0.82) translate(-48 -48)">
-  <circle cx="42" cy="23" r="4.5" fill="#df5e4e"/>
-  <circle cx="54" cy="23" r="4.5" fill="#df5e4e"/>
-  <circle cx="48" cy="27" r="6" fill="#d9b663"/>
-  <g fill="#54b89b" opacity="0.55" stroke="#54b89b" stroke-width="1.5">
-    <path d="M45 40 C32 30 18 30 14 38 C20 45 35 47 45 45 Z"/>
-    <path d="M51 40 C64 30 78 30 82 38 C76 45 61 47 51 45 Z"/>
-  </g>
-  <g fill="#d9b663" opacity="0.5" stroke="#d9b663" stroke-width="1.5">
-    <path d="M45 47 C34 55 24 59 19 57 C25 51 37 48 45 48 Z"/>
-    <path d="M51 47 C62 55 72 59 77 57 C71 51 59 48 51 48 Z"/>
-  </g>
-  <ellipse cx="48" cy="44" rx="5" ry="10" fill="#54b89b"/>
-  <path d="M48 50 V72" stroke="#54b89b" stroke-width="6" stroke-linecap="round"/>
-  <path d="M44 57 H52 M44 63 H52 M44 69 H52" stroke="#10171a" stroke-width="2" opacity="0.6"/>
+  <defs>
+    <mask id="df-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">
+      <rect width="96" height="96" fill="#fff"/>
+      <g fill="#000">
+        <rect x="43.2" y="46" width="9.6" height="1.6" rx="0.8"/>
+        <rect x="43.6" y="53.5" width="8.8" height="1.6" rx="0.8"/>
+        <rect x="44.1" y="61" width="7.8" height="1.6" rx="0.8"/>
+        <rect x="44.7" y="68.5" width="6.6" height="1.6" rx="0.8"/>
+        <rect x="45.3" y="75.5" width="5.4" height="1.4" rx="0.7"/>
+        <path d="M45.6 24.2 H50.4 V25.6 H45.6 Z"/>
+      </g>
+      <g stroke="#000" stroke-width="1.8" fill="none" stroke-linecap="round">
+        <path d="M45 29 C38 21 26 15 13 13"/>
+        <path d="M45 31.5 C37 27 27 24 17 22"/>
+        <path d="M51 29 C58 21 70 15 83 13"/>
+        <path d="M51 31.5 C59 27 69 24 79 22"/>
+        <path d="M45.5 36 C37 43 26 50 15 56"/>
+        <path d="M45.5 38.5 C38 46 29 53 20 59"/>
+        <path d="M50.5 36 C59 43 70 50 81 56"/>
+        <path d="M50.5 38.5 C58 46 67 53 76 59"/>
+      </g>
+      <circle cx="45.5" cy="17.6" r="1.7" fill="#000"/>
+      <circle cx="50.5" cy="17.6" r="1.7" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#df-cut)" fill="#10171a">
+    <path d="M46 28 C40 17 26 10 8 12 C12 19 27 28 46 32 Z"/>
+    <path d="M50 28 C56 17 70 10 88 12 C84 19 69 28 50 32 Z"/>
+    <path d="M46 36 C38 44 24 52 11 58 C19 61 35 52 46 39.5 Z"/>
+    <path d="M50 36 C58 44 72 52 85 58 C77 61 61 52 50 39.5 Z"/>
+    <circle cx="48" cy="18.5" r="6.2"/>
+    <ellipse cx="48" cy="31" rx="5.2" ry="7.6"/>
+    <path d="M45.2 37 L50.8 37 L49.2 78 C49.1 79.4 46.9 79.4 46.8 78 Z"/>
   </g>
 </svg>

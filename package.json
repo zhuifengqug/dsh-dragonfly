@@ -1,7 +1,7 @@
 {
   "name": "@zhuifengqug/dsh-dragonfly",
   "version": "0.1.2",
-  "description": "虫珀·蜻蛉：每天替你去 B站、抖音采一轮风，挑出值得看的，写一份日报",
+  "description": "虫珀·蜻蛉：旧时派人采风呈报，如今每天替你巡一遍 B站与抖音，把值得看的写成日报",
   "type": "module",
   "main": "index.js",
   "exports": {
