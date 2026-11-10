@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import {
-  AIHOT_UA, aihotForDay, aihotMarkdown, fetchAihot, normalizeDaily, normalizeSelected,
+  AIHOT_UA, aihotForDay, aihotMarkdown, aihotPromptNote, fetchAihot, normalizeDaily, normalizeSelected,
 } from '../../lib/aihot.mjs'
 import { DEFAULTS } from '../../lib/config.mjs'
 import { createDragonflyService } from '../../lib/service.mjs'
@@ -191,4 +191,14 @@ test('只开 AIHOT：不走模型也能出一份日报', async () => {
     globalThis.fetch = realFetch
     await rm(home, { recursive: true, force: true })
   }
+})
+
+test('aihotPromptNote：把 AI 圈标题列成清单，取不到时说清原因', () => {
+  assert.equal(
+    aihotPromptNote({ ok: true, items: [{ title: '甲', source: '某站' }, { title: '乙' }] }),
+    '- 甲（某站）\n- 乙',
+  )
+  assert.match(aihotPromptNote({ ok: true, items: [] }), /没有内容/)
+  assert.match(aihotPromptNote({ ok: false, reason: 'HTTP 503' }), /没取到：HTTP 503/)
+  assert.match(aihotPromptNote(null), /没取到/)
 })
