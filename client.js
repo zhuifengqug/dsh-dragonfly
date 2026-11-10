@@ -414,6 +414,8 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
       const [diag, setDiag] = useState(null)
       const [more, setMore] = useState('')          // 互动/运行环境是否展开
       const [busy, setBusy] = useState('')
+      // 关键词框的本地草稿：输入时原样保留（否则每打一个逗号就被 split→join 吃掉），失焦再收回规范写法
+      const [kwText, setKwText] = useState(null)
 
       useEffect(() => {
         jget('/config').then((r) => { setCfg(r.config || {}); setLabels(r.labels || {}) })
@@ -561,11 +563,17 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
         // ② 怎么挑
         h(Sec, { title: '怎么挑' },
           h(Row, null,
-            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.keywords || '关注关键词'),
+            h('span', { 'data-cf-label': '' }, labels.keywords || '关注关键词'),
             h('input', {
-              'data-cf-input': '', value: (val('keywords') || []).join(', '),
-              style: { width: '260px' },
-              onChange: (e) => set('keywords', e.target.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean)),
+              'data-cf-input': '', 'data-cf-grow': '',
+              value: kwText === null ? (val('keywords') || []).join(', ') : kwText,
+              placeholder: '用逗号分开，例如：deepseek, ai, 插件',
+              onChange: (e) => {
+                const raw = e.target.value
+                setKwText(raw)
+                set('keywords', raw.split(/[,，]/).map((s) => s.trim()).filter(Boolean))
+              },
+              onBlur: () => setKwText(null),
             })),
           h(Row, null,
             h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.fetchPerRound || '每轮最多细看几条'),
