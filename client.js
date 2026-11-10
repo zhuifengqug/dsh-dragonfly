@@ -133,7 +133,13 @@ window.__ModuleLoader__.load({
 [data-cf-conv] [data-cf-page]{max-width:none;padding:0 16px 2px;}
 
 /* ── 筛选：先信源，再档位，最后日期 ───────────────────────────────────── */
-[data-cf-filters]{display:flex;flex-direction:column;gap:6px;padding:10px 0 2px;}
+/* 筛子压成一行：会话顶部那块只有几百像素，三行筛子把日报全挤出屏幕了 */
+[data-cf-filters]{display:flex;flex-direction:row;align-items:center;gap:8px;padding:5px 0 5px;}
+[data-cf-spacer]{flex:1;min-width:0;}
+[data-cf-filters] [data-cf-chips]{flex:1;min-width:0;}
+[data-cf-day]{flex:none;font-size:11px;line-height:18px;padding:2px 4px;border-radius:6px;min-width:0;
+  border:1px solid var(--dsw-alias-border-secondary,#d9dde2);background:transparent;
+  color:var(--dsw-alias-label-secondary,#5b6068);font-family:inherit;cursor:pointer;}
 /* 会话顶部那一块矮，chip 得钉住，不然翻两条就滚没了 */
 [data-cf-conv] [data-cf-sticky]{position:sticky;top:0;z-index:2;
   background:var(--dsw-alias-bg-elevated,#fff);padding:6px 0 4px;}
@@ -472,19 +478,20 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
             chip('all', '全部', countOf('all')),
             chip('bili', 'B站', countOf('bili')),
             chip('douyin', '抖音', countOf('douyin')),
-            aihotEntries.length ? chip('aihot', 'AI 圈', countOf('aihot')) : null),
-          tierKeys.length > 1
-            ? h('div', { 'data-cf-chips': '' },
-              tierChip('all', '所有档位', 0),
-              tierKeys.map((t) => tierChip(t, t, tierCount(t))))
-            : null,
+            aihotEntries.length ? chip('aihot', 'AI 圈', countOf('aihot')) : null,
+            tierKeys.length > 1 ? h('span', { 'data-cf-chip-gap': '' }) : null,
+            tierKeys.length > 1 ? tierChip('all', '全档', 0) : null,
+            tierKeys.length > 1 ? tierKeys.map((t) => tierChip(t, t, tierCount(t))) : null),
+          h('div', { 'data-cf-spacer': '' }),
           days.length > 1 || day
-            ? h('div', { 'data-cf-chips': '' },
-              days.map((d) => h('button', {
-                key: d, type: 'button', 'data-cf-chip': '',
-                'data-on': (day || data?.day) === d ? '' : undefined,
-                onClick: () => setDay(d),
-              }, d.slice(5))))
+            ? h('select', {
+              'data-cf-day': '',
+              title: '换一天看',
+              value: day || data?.day || '',
+              onChange: (e) => setDay(e.target.value),
+            },
+              h('option', { value: '' }, '最近一天'),
+              days.map((d) => h('option', { key: d, value: d }, d)))
             : null),
 
         !data ? h('div', { 'data-cf-empty': '' }, '正在读…')
