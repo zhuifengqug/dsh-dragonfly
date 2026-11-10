@@ -366,8 +366,8 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
 
       const view = data?.view
       const sections = view?.sections || []
-      // 左侧栏目决定看哪一块：总览 = B站 + 抖音 + AI 圈；报告 = 扫过没收的 / 总结 / 评论复核
-      const src = tab === 'report' ? 'all' : tab
+      // 左侧栏目：总览里既有三个信源，也有报告旁注（扫过没收的 / 总结 / 评论复核）
+      const src = tab
       const picks = sections.find((s) => s.key === 'picks')?.entries || []
       const shown = (e) => (src === 'all' || e.source === src)
         && (tier === 'all' || e.tier === tier)
@@ -478,15 +478,11 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
         }, head(false), ...body)
       }
 
-      // 报告那一栏装的就是这些旁注（扫过没收的 / 总结 / 评论复核 / 私信）
-      const reportCount = rest.reduce((n, s) => n + (s.entries || []).length + (s.lines || []).length, 0)
-
       const navItems = [
         { key: 'all', label: '总览', n: countOf('all') + aihotEntries.length },
         { key: 'bili', label: 'B站', n: countOf('bili') },
         { key: 'douyin', label: '抖音', n: countOf('douyin') },
         { key: 'aihot', label: 'AI 圈', n: countOf('aihot') },
-        { key: 'report', label: '报告', n: reportCount },
       ]
 
       // 总览里按信源分组：每组一个小标题带条数，先一眼看全，再进单栏细看
@@ -498,11 +494,6 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
         : null)
 
       const pane = () => {
-        if (tab === 'report') {
-          const blocks = rest.map(secBlock).filter(Boolean)
-          return blocks.length ? h('div', null, ...blocks)
-            : h('div', { 'data-cf-empty': '' }, '这一天没有旁注。')
-        }
         if (tab === 'aihot') {
           return aihotEntries.length
             ? h('div', null, ...aihotEntries.map(entryCard))
@@ -516,13 +507,16 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
         }
         const bili = picked.filter((e) => e.source === 'bili')
         const dy = picked.filter((e) => e.source === 'douyin')
-        if (!bili.length && !dy.length && !aihotEntries.length) {
+        const notes = rest.map(secBlock)
+        if (!bili.length && !dy.length && !aihotEntries.length && !notes.some(Boolean)) {
           return h('div', { 'data-cf-empty': '' }, '这一天一条都没收。')
         }
+        // 总览 = 三个信源分组 + 后面的旁注（扫过没收的、总结、评论复核）
         return h('div', null,
           groupCard('bili', bili),
           groupCard('douyin', dy),
-          groupCard('aihot', aihotEntries))
+          groupCard('aihot', aihotEntries),
+          ...notes)
       }
 
       // 日期条：正上方居中，左右能翻；最左边的按钮把栏目列收进去
