@@ -177,6 +177,36 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
 [data-cf-line]{font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary,#5b6068);
   padding:3px 0;border-bottom:1px solid var(--dsw-alias-border-secondary,#f2f4f6);}
 [data-cf-line]:last-child{border-bottom:0;}
+
+/* ── 设置页：左侧分组导航 + 右侧表单 ─────────────────────────────────────
+   以后往里加一组，只加一条 nav 项和一个面板，不用再动版式。 */
+[data-cf-page][data-cf-set]{display:flex;flex-direction:row;align-items:flex-start;gap:26px;
+  max-width:960px;padding:6px 2px 8px;}
+[data-cf-nav]{position:sticky;top:4px;flex:0 0 148px;width:148px;display:flex;flex-direction:column;gap:1px;}
+[data-cf-nav] button{appearance:none;border:0;background:transparent;text-align:left;cursor:pointer;
+  font-family:inherit;font-size:13px;line-height:18px;color:var(--dsw-alias-label-secondary,#5b6068);
+  padding:7px 10px;border-radius:8px;display:flex;align-items:center;gap:7px;width:100%;}
+[data-cf-nav] button:hover{background:var(--dsw-alias-bg-secondary,#f2f4f6);}
+[data-cf-nav] button[data-on]{background:var(--dsw-alias-bg-secondary,#f2f4f6);
+  color:var(--dsw-alias-label-primary,#1f2328);font-weight:600;}
+[data-cf-nav] button i{flex:none;width:5px;height:5px;border-radius:3px;
+  background:var(--dsw-alias-brand-primary,#4c7dff);opacity:0;}
+[data-cf-nav] button[data-dirty] i{opacity:1;}
+[data-cf-pane]{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;
+  padding-left:26px;border-left:1px solid var(--dsw-alias-border-secondary,#e6e8eb);}
+[data-cf-pane-h]{font-size:14px;font-weight:600;line-height:20px;}
+[data-cf-pane-d]{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#8b9199);margin-top:2px;}
+[data-cf-cards]{display:grid;grid-template-columns:repeat(auto-fit,minmax(192px,1fr));gap:10px;}
+[data-cf-card]{border:1px solid var(--dsw-alias-border-secondary,#e6e8eb);border-radius:10px;
+  padding:11px 12px;display:flex;flex-direction:column;gap:9px;min-width:0;
+  background:var(--dsw-alias-bg-elevated,#fff);}
+[data-cf-card][data-off]{background:var(--dsw-alias-bg-secondary,#f7f8f9);}
+[data-cf-card][data-off] [data-cf-card-k]{opacity:.55;}
+[data-cf-card-h]{display:flex;align-items:center;gap:8px;}
+[data-cf-card-h] b{font-size:13px;font-weight:600;flex:1;min-width:0;}
+[data-cf-card-k]{display:flex;flex-direction:column;gap:7px;}
+[data-cf-save]{position:sticky;bottom:-6px;z-index:2;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 0 9px;background:linear-gradient(to top,var(--dsw-alias-bg-elevated,#fff) 70%,transparent);}
 `
 
     const StyleTag = () => h('style', { 'data-cf-style': '' }, CSS)
@@ -283,9 +313,15 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
       const shown = (e) => (src === 'all' || e.source === src)
         && (tier === 'all' || e.tier === tier)
       const picked = picks.filter(shown)
-      const rest = sections.filter((s) => s.key !== 'picks')
+      const rest = sections.filter((s) => s.key !== 'picks' && s.key !== 'aihot')
+      // AIHOT 是转述来的，不在「今天挑的」里，单独一块、单独数
+      const aihotEntries = (sections.find((s) => s.key === 'aihot')?.entries || [])
+        .filter((e) => e.source === 'aihot')
 
-      const countOf = (key) => picks.filter((e) => key === 'all' || e.source === key).length
+      const SRC_LABEL = { bili: 'B站', douyin: '抖音', aihot: 'AIHOT' }
+      const countOf = (key) => (key === 'aihot'
+        ? aihotEntries.length
+        : picks.filter((e) => key === 'all' || e.source === key).length)
 
       // 档位筛子只列这一天真正出现过的档位 —— 没出现过的摆上去只会让人白点一下
       const tierKeys = ['值得看', '可以看', '不值当']
@@ -336,7 +372,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           e.tier ? h('span', tiers(e.tier), e.tier) : null),
         e.why ? h('p', { 'data-cf-why': '' }, e.why) : null,
         e.quote ? h('div', { 'data-cf-quote': '' }, e.quote) : null,
-        h('div', { 'data-cf-meta': '' }, `${e.source === 'douyin' ? '抖音' : 'B站'} · ${e.id || '没有 id'}`)))
+        h('div', { 'data-cf-meta': '' }, `${SRC_LABEL[e.source] || e.source} · ${e.id || '没有 id'}`)))
 
       // 「扫过没收的」之类：只有一行标题，写成清单就行，别也铺封面
       const flatLine = (text, key) => h('div', { key, 'data-cf-line': '' }, text)
@@ -352,6 +388,15 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           ...lines.map((l, i) => flatLine(l, `${s.key || s.title}-${i}`)))
       }
 
+      // AIHOT 转述块：它不是「挑出来的」，所以单独一节，标题明说这是转述
+      const aihotBlock = () => {
+        if (!aihotEntries.length) return null
+        if (src !== 'all' && src !== 'aihot') return null
+        return h('div', { key: 'aihot' },
+          h('div', { 'data-cf-sub': '' }, 'AI 圈（AIHOT）· 原样转述，不参与挑档'),
+          ...aihotEntries.map(entryCard))
+      }
+
       return h('div', { 'data-cf-page': '', 'data-cf-wide': compact && !wide ? undefined : '' },
         h(StyleTag, null),
 
@@ -361,7 +406,8 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
           h('div', { 'data-cf-chips': '' },
             chip('all', '全部', countOf('all')),
             chip('bili', 'B站', countOf('bili')),
-            chip('douyin', '抖音', countOf('douyin'))),
+            chip('douyin', '抖音', countOf('douyin')),
+            aihotEntries.length ? chip('aihot', 'AI 圈', countOf('aihot')) : null),
           tierKeys.length > 1
             ? h('div', { 'data-cf-chips': '' },
               tierChip('all', '所有档位', 0),
@@ -381,14 +427,15 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
             h('div', null, '还没采过。'),
             runBtn('现在就跑'),
             h('div', { 'data-cf-note': '' }, '到点会自动跑一轮，也可以现在点一下。'))
-            : picked.length === 0 && rest.every((s) => !(s.entries || []).length && !(s.lines || []).length)
+            : picked.length === 0 && !aihotEntries.length
+              && rest.every((s) => !(s.entries || []).length && !(s.lines || []).length)
               ? h('div', { 'data-cf-empty': '' }, '这一天的日报是空的。')
               : h('div', null,
                 picked.length
                   ? h('div', null, picked.map(entryCard))
-                  : h('div', { 'data-cf-empty': '' },
+                  : aihotBlock() ? null : h('div', { 'data-cf-empty': '' },
                     (() => {
-                      const bySrc = src === 'all' ? '' : (src === 'douyin' ? '抖音' : 'B站')
+                      const bySrc = src === 'all' ? '' : (SRC_LABEL[src] || src)
                       if (tier !== 'all') {
                         return bySrc
                           ? `这一天没有「${tier}」的${bySrc}条目。`
@@ -396,6 +443,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
                       }
                       return bySrc ? `这一天没有${bySrc}的条目。` : '这一天一条都没收。'
                     })()),
+                aihotBlock(),
                 rest.map(secBlock)),
       )
     }
@@ -412,7 +460,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
       const [py, setPy] = useState(null)
       const [login, setLogin] = useState(null)     // {key, qr, state}
       const [diag, setDiag] = useState(null)
-      const [more, setMore] = useState('')          // 互动/运行环境是否展开
+      const [tabKey, setTabKey] = useState('sources')   // 设置页左侧分组导航当前选中项
       const [busy, setBusy] = useState('')
       // 关键词框的本地草稿：输入时原样保留（否则每打一个逗号就被 split→join 吃掉），失焦再收回规范写法
       const [kwText, setKwText] = useState(null)
@@ -535,33 +583,100 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
       const pyOk = Boolean(py?.venv && py?.python)
       const logined = Boolean(runtime.biliLoggedIn)
 
-      return h('div', { 'data-cf-page': '' },
-        h(StyleTag, null),
+      // ── 分组：左侧导航一项 = 一个面板 ────────────────────────────────────
+      // 这份清单本身就是「使用者能发现什么」：想知道蜻蛉能干什么，看左边那六个词。
+      // 以后要加功能，就在这儿加一条 + 下面加一个面板，版式不用动。
+      const groups = [
+        { key: 'sources', label: '采什么', title: '采什么', desc: '从哪儿采。关掉的那个源，那一轮就不去。',
+          keys: ['sources', 'dyDailyMinutes', 'aihotPerDay', 'aihotMode', 'favoritesEnabled'] },
+        { key: 'pick', label: '怎么挑', title: '怎么挑', desc: '一轮收几条、认哪些词、日报写多细。',
+          keys: ['perDay', 'keywords', 'fetchPerRound', 'reportLevel'] },
+        { key: 'output', label: '写到哪', title: '写到哪', desc: '日报、单片笔记、值班轮的工作目录。',
+          keys: ['outputDir', 'workspaceDir', 'notesEnabled'] },
+        { key: 'interact', label: '互动', title: '互动', desc: '要不要在 B站 上说话 —— 评论和私信。',
+          keys: ['autoComment', 'commentLength', 'dmEnabled', 'dmMode', 'mentionName'] },
+        { key: 'runtime', label: '运行环境', title: '运行环境', desc: '用哪个模型、Python 装没装、哪儿不对。',
+          keys: ['model'] },
+        { key: 'display', label: '显示', title: '显示', desc: '入口挂不挂。只影响界面，不影响跑不跑。',
+          keys: ['showSidebar', 'showConversation'] },
+      ]
+      const current = groups.find((g) => g.key === tabKey) || groups[0]
+      const dirtyIn = (keys) => keys.some((k) => k in dirty)
 
-        // ① 信源与额度
-        h(Sec, { title: '信源与额度' },
-          h(Row, null,
-            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '看 B站'),
+      // ① 采什么：三个源各一张卡，卡头是开关，卡里是它自己的东西
+      const sourceCards = [
+        h('div', { key: 'bili', 'data-cf-card': '', 'data-off': val('sources')?.bili ? undefined : '' },
+          h('div', { 'data-cf-card-h': '' },
+            h('b', null, 'B站'),
             h(Switch, {
               on: Boolean(val('sources')?.bili),
               onChange: (v) => set('sources', { ...val('sources'), bili: v }),
             })),
-          h(Row, null,
-            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '看抖音'),
+          h('div', { 'data-cf-card-k': '' },
+            h('div', { 'data-cf-note': '' },
+              logined ? `已登录 · UID ${runtime.biliUid || '?'}` : '还没登录（扫一次码就行）'),
+            h('div', { 'data-cf-row': '' },
+              h(Btn, { onClick: startLogin, disabled: busy === 'login' }, logined ? '重新扫码' : '扫码登录')),
+            h('div', { 'data-cf-row': '' },
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '收藏夹的更新也算'),
+              h(Switch, { on: Boolean(val('favoritesEnabled')), onChange: (v) => set('favoritesEnabled', v) })))),
+        h('div', { key: 'douyin', 'data-cf-card': '', 'data-off': val('sources')?.douyin ? undefined : '' },
+          h('div', { 'data-cf-card-h': '' },
+            h('b', null, '抖音'),
             h(Switch, {
               on: Boolean(val('sources')?.douyin),
               onChange: (v) => set('sources', { ...val('sources'), douyin: v }),
             })),
+          h('div', { 'data-cf-card-k': '' },
+            h('div', { 'data-cf-note': '' },
+              runtime.dyProfile ? '登录态还留着' : '还没起过（第一次跑会开个专用窗口）'),
+            h('div', { 'data-cf-row': '' },
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '每天最多看'),
+              h(Num, { value: val('dyDailyMinutes'), min: 0, max: 120, onChange: (v) => set('dyDailyMinutes', v) }),
+              h('span', { 'data-cf-note': '' }, '分钟')),
+            h('div', { 'data-cf-row': '' },
+              h(Btn, { onClick: resetDy, disabled: busy === 'dyreset' }, '重置登录')))),
+        h('div', { key: 'aihot', 'data-cf-card': '', 'data-off': val('sources')?.aihot ? undefined : '' },
+          h('div', { 'data-cf-card-h': '' },
+            h('b', null, 'AI 圈（AIHOT）'),
+            h(Switch, {
+              on: Boolean(val('sources')?.aihot),
+              onChange: (v) => set('sources', { ...val('sources'), aihot: v }),
+            })),
+          h('div', { 'data-cf-card-k': '' },
+            h('div', { 'data-cf-note': '' }, '免登录、只读。转述同行（aihot.news）的 AI 日报，不参与挑选，也不占额度。'),
+            h('div', { 'data-cf-row': '' },
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '每天取'),
+              h(Num, { value: val('aihotPerDay'), min: 0, max: 20, onChange: (v) => set('aihotPerDay', v) }),
+              h('span', { 'data-cf-note': '' }, '条')),
+            h('div', { 'data-cf-row': '' },
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '取哪一种'),
+              h('select', {
+                'data-cf-input': '', value: val('aihotMode') || 'daily',
+                onChange: (e) => set('aihotMode', e.target.value),
+              },
+                h('option', { value: 'daily' }, '当天日报'),
+                h('option', { value: 'selected' }, '24h 精选'))))),
+      ]
+
+      // ② 其余五个面板：每块只放它自己的东西，行与行之间靠间距分组
+      const panels = {
+        sources: [
+          h('div', { 'data-cf-cards': '' }, sourceCards),
+          login?.qr ? h('div', { 'data-cf-qr': '' },
+            h('img', { src: login.qr, alt: '登录二维码', style: { width: '180px', height: '180px' } }),
+            h(Note, null, login.state === 'ok' ? '扫上了。'
+              : login.state === 'scanned' ? '扫到了，手机上点一下确认。'
+                : login.state === 'expired' ? '码过期了，再点一次「扫码登录」。'
+                  : '用手机 B站 扫这个码。')) : null,
+          h(Note, null, '三个源互不干扰：关掉的那个，那一轮就不去，日报里也不会出现它的节。'),
+        ],
+
+        pick: [
           h(Row, null,
             h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.perDay || '每天最多挑几条'),
             h(Num, { value: val('perDay'), min: 0, max: 30, onChange: (v) => set('perDay', v) })),
-          h(Row, null,
-            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dyDailyMinutes || '抖音每天最多看几分钟'),
-            h(Num, { value: val('dyDailyMinutes'), min: 0, max: 120, onChange: (v) => set('dyDailyMinutes', v) })),
-        ),
-
-        // ② 怎么挑
-        h(Sec, { title: '怎么挑' },
+          h(Note, null, '这里指的是视频：B站 + 抖音 加起来一天的额度。AI 圈那一节不算在里面。'),
           h(Row, null,
             h('span', { 'data-cf-label': '' }, labels.keywords || '关注关键词'),
             h('input', {
@@ -575,6 +690,7 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
               },
               onBlur: () => setKwText(null),
             })),
+          h(Note, null, '留空就什么都看；填了就优先往这些词上找。'),
           h(Row, null,
             h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.fetchPerRound || '每轮最多细看几条'),
             h(Num, { value: val('fetchPerRound'), min: 1, max: 30, onChange: (v) => set('fetchPerRound', v) })),
@@ -587,166 +703,137 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
             },
               h('option', { value: 'full' }, 'full · 写全'),
               h('option', { value: 'brief' }, 'brief · 只写结论'))),
-        ),
+        ],
 
-        // ③ 互动与产出（默认折起）
-        h('section', { 'data-cf-sec': '' },
-          h('button', {
-            type: 'button', 'data-cf-h': '', 'data-cf-fold': '',
-            onClick: () => setMore(more === 'interact' ? '' : 'interact'),
-          }, `${more === 'interact' ? '▾' : '▸'} 互动与产出`),
-          more !== 'interact' ? null : h('div', { 'data-cf-sec': '' },
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoComment || '挑到值得看就留一句评论并 @ 我'),
-              h(Switch, { on: Boolean(val('autoComment')), onChange: (v) => set('autoComment', v) })),
-            h(Note, null, `@ 谁：${val('mentionName') || '（没填）'}。一轮最多一条。`),
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.commentLength || '评论长度'),
-              h('select', {
-                'data-cf-input': '', value: val('commentLength') || 'medium',
-                onChange: (e) => set('commentLength', e.target.value),
-              },
-                h('option', { value: 'short' }, 'short · 15 字内'),
-                h('option', { value: 'medium' }, 'medium · 40 字内'),
-                h('option', { value: 'long' }, 'long · 100 字内'))),
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.notesEnabled || '值得看的另存单片笔记'),
-              h(Switch, { on: Boolean(val('notesEnabled')), onChange: (v) => set('notesEnabled', v) })),
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.favoritesEnabled || '把收藏夹的更新也算进来'),
-              h(Switch, { on: Boolean(val('favoritesEnabled')), onChange: (v) => set('favoritesEnabled', v) })),
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmEnabled || '处理收到的私信'),
-              h(Switch, { on: Boolean(val('dmEnabled')), onChange: (v) => set('dmEnabled', v) })),
-            val('dmEnabled') ? h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmMode || '私信怎么处理'),
-              h('select', {
-                'data-cf-input': '', value: val('dmMode') || 'read',
-                onChange: (e) => setDmMode(e.target.value),
-              },
-                h('option', { value: 'read' }, 'read · 只看，不动'),
-                h('option', { value: 'draft' }, 'draft · 起草但不发'),
-                h('option', { value: 'auto' }, 'auto · 自动回'))) : null,
-            val('dmMode') === 'auto' ? h(Note, null,
-              '自动回会真的把话发出去。它会写进日报里留对账，但还是建议你先看一眼 read 攒几天的记录再说。') : null,
-          )),
-
-        // ④ 运行环境（默认折起）
-        h('section', { 'data-cf-sec': '' },
-          h('button', {
-            type: 'button', 'data-cf-h': '', 'data-cf-fold': '',
-            onClick: () => setMore(more === 'runtime' ? '' : 'runtime'),
-          }, `${more === 'runtime' ? '▾' : '▸'} 运行环境`),
-          more !== 'runtime' ? null : h('div', { 'data-cf-sec': '' },
-
-            // 模型
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '用哪个模型'),
-              modelOptions.length
-                ? h('select', {
-                  'data-cf-input': '', value: modelValue,
-                  onChange: (e) => {
-                    const [provider, model] = e.target.value.split('\u0000')
-                    set('model', { provider, model })
-                  },
-                },
-                  h('option', { value: '\u0000' }, '跟宿主默认走'),
-                  modelOptions.map((o) => h('option', { key: o.value, value: o.value }, o.label)))
-                : h('input', {
-                  'data-cf-input': '', placeholder: models?.note || 'provider / model', style: { width: '240px' },
-                  value: `${val('model')?.provider || ''}${val('model')?.model ? ` / ${val('model')?.model}` : ''}`,
-                  onChange: (e) => {
-                    const [provider, model] = e.target.value.split('/').map((s) => s.trim())
-                    set('model', { provider: provider || '', model: model || '' })
-                  },
-                })),
-            !modelOptions.length ? h(Note, null, models?.note || '读不到宿主登记的模型名，直接手填 provider 和 model（用 / 隔开）。') : null,
-            h(Note, null, '选「跟宿主默认走」就是空着，用 DSH 现在那个模型。'),
-
-            // 存放位置
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.outputDir || '存放位置'),
-              h('input', {
-                'data-cf-input': '', placeholder: status?.home || '', style: { width: '280px' },
-                value: val('outputDir') || '',
-                onChange: (e) => set('outputDir', e.target.value),
-              })),
-            h(Note, null, '留空就是默认位置。填绝对路径会搬过去（只搬配置、判重、登录凭证，旧日报留在原地）。'),
-
-            // 值班轮的工作区（会话的 cwd 就是它的工作区）
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.workspaceDir || '值班轮的工作区'),
-              h('input', {
-                'data-cf-input': '', placeholder: '留空=数据目录', style: { width: '280px' },
-                value: val('workspaceDir') || '',
-                onChange: (e) => set('workspaceDir', e.target.value),
-              })),
-            h(Note, null, '每天那一轮在哪个目录里跑 —— 会话列表按这个目录归到工作区。留空就用数据目录（那里不会显示成工作区）。'),
-
-            // Python
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 那一头要个 Python 环境'),
-              h(Btn, { onClick: installPython, disabled: busy === 'python' },
-                busy === 'python' ? '正在装…' : (pyOk ? '重装' : '装一下'))),
-            h(Note, null, py?.hint || (pyOk ? `好了：${py.python}` : '还没装。装一次就行，几分钟。')),
-
-            // B站 登录
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 登录'),
-              logined ? h('span', { 'data-cf-note': '' }, `已登录（UID ${runtime.biliUid || '?'}）`) : null,
-              // 按钮一直在 —— 凭证过期是很平常的事，登录之后把入口藏起来等于逼人删文件
-              h(Btn, { onClick: startLogin, disabled: busy === 'login' }, logined ? '重新扫码' : '扫码登录')),
-            login?.qr ? h('div', { 'data-cf-qr': '' },
-              h('img', { src: login.qr, alt: '登录二维码', style: { width: '180px', height: '180px' } }),
-              h(Note, null, login.state === 'ok' ? '扫上了。'
-                : login.state === 'scanned' ? '扫到了，手机上点一下确认。'
-                  : login.state === 'expired' ? '码过期了，再点一次「扫码登录」。'
-                    : '用手机 B站 扫这个码。')) : null,
-
-            // 抖音浏览器
-            h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '抖音浏览器'),
-              h('span', { 'data-cf-note': '' },
-                runtime.dyProfile ? '登录态还留着' : '还没起过（第一次跑的时候会开一个专用窗口）'),
-              h(Btn, { onClick: resetDy, disabled: busy === 'dyreset' }, '重置登录')),
-            h(Note, null, '抖音要一个真浏览器窗口，第一次用得在里面登一次。之后登录态存在自己的 profile 里，跑完不关。'
-              + '扫码过期或者被踢下线了，点「重置登录」再跑一轮就会重新要码。'),
-
-            // 诊断 / 导入
-            h(Row, null,
-              h(Btn, { onClick: runDiagnose, disabled: busy === 'diag' }, '看看哪儿不对'),
-              h(Btn, { onClick: importOld, disabled: busy === 'import' }, '从旧插件导入')),
-            diag ? h('div', { 'data-cf-note': '' },
-              h('div', null, diag.verdict || (diag.ok ? '看着没问题。' : '有点问题。')),
-              Array.isArray(diag.checks) && diag.checks.length
-                ? h('ul', { 'data-cf-checks': '' },
-                  diag.checks.map((c) => h('li', { key: c.key, 'data-ok': c.ok ? '1' : '0' },
-                    h('span', null, `${c.ok ? '✓' : '×'} ${c.label}`),
-                    h('span', null, ` — ${c.line}`),
-                    c.ok ? null : h('em', null, ` ${c.hint}`))))
-                : null,
-              diag.detail?.hint ? h('div', null, diag.detail.hint) : null,
-              diag.logTail ? h('pre', { 'data-cf-log': '' }, diag.logTail) : null) : null,
-          )),
-
-        // ── 显示：只决定入口挂不挂，不影响跑不跑 ──────────────────────────
-        h(Sec, { title: '显示' },
+        output: [
           h(Row, null,
-            h('div', { 'data-cf-grow': '' }, h('div', { 'data-cf-label': '' }, '侧栏留个入口')),
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.outputDir || '存放位置'),
+            h('input', {
+              'data-cf-input': '', 'data-cf-grow': '', placeholder: status?.home || '',
+              value: val('outputDir') || '',
+              onChange: (e) => set('outputDir', e.target.value),
+            })),
+          h(Note, null, '留空就是默认位置。填绝对路径会搬过去（只搬配置、判重、登录凭证，旧日报留在原地）。'),
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.workspaceDir || '值班轮的工作区'),
+            h('input', {
+              'data-cf-input': '', 'data-cf-grow': '', placeholder: '留空=数据目录',
+              value: val('workspaceDir') || '',
+              onChange: (e) => set('workspaceDir', e.target.value),
+            })),
+          h(Note, null, '每天那一轮在哪个目录里跑 —— 会话列表按这个目录归到工作区。留空就用数据目录。'),
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.notesEnabled || '值得看的另存单片笔记'),
+            h(Switch, { on: Boolean(val('notesEnabled')), onChange: (v) => set('notesEnabled', v) })),
+          h(Note, null, '开了之后每条「值得看」除了写进日报，还会单独存一份带封面与正文的笔记。'),
+        ],
+
+        interact: [
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoComment || '挑到值得看就留一句评论并 @ 我'),
+            h(Switch, { on: Boolean(val('autoComment')), onChange: (v) => set('autoComment', v) })),
+          h(Note, null, `@ 谁：${val('mentionName') || '（没填）'}。一轮最多一条。`),
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.commentLength || '评论长度'),
+            h('select', {
+              'data-cf-input': '', value: val('commentLength') || 'medium',
+              onChange: (e) => set('commentLength', e.target.value),
+            },
+              h('option', { value: 'short' }, 'short · 15 字内'),
+              h('option', { value: 'medium' }, 'medium · 40 字内'),
+              h('option', { value: 'long' }, 'long · 100 字内'))),
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmEnabled || '处理收到的私信'),
+            h(Switch, { on: Boolean(val('dmEnabled')), onChange: (v) => set('dmEnabled', v) })),
+          val('dmEnabled') ? h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.dmMode || '私信怎么处理'),
+            h('select', {
+              'data-cf-input': '', value: val('dmMode') || 'read',
+              onChange: (e) => setDmMode(e.target.value),
+            },
+              h('option', { value: 'read' }, 'read · 只看，不动'),
+              h('option', { value: 'draft' }, 'draft · 起草但不发'),
+              h('option', { value: 'auto' }, 'auto · 自动回'))) : null,
+          val('dmMode') === 'auto' ? h(Note, null,
+            '自动回会真的把话发出去。它会写进日报里留对账，但还是建议你先看一眼 read 攒几天的记录再说。') : null,
+        ],
+
+        runtime: [
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '用哪个模型'),
+            modelOptions.length
+              ? h('select', {
+                'data-cf-input': '', value: modelValue,
+                onChange: (e) => {
+                  const [provider, model] = e.target.value.split('\u0000')
+                  set('model', { provider, model })
+                },
+              },
+                h('option', { value: '\u0000' }, '跟宿主默认走'),
+                modelOptions.map((o) => h('option', { key: o.value, value: o.value }, o.label)))
+              : h('input', {
+                'data-cf-input': '', placeholder: models?.note || 'provider / model',
+                value: `${val('model')?.provider || ''}${val('model')?.model ? ` / ${val('model')?.model}` : ''}`,
+                onChange: (e) => {
+                  const [provider, model] = e.target.value.split('/').map((s) => s.trim())
+                  set('model', { provider: provider || '', model: model || '' })
+                },
+              })),
+          !modelOptions.length ? h(Note, null, models?.note || '读不到宿主登记的模型名，直接手填 provider 和 model（用 / 隔开）。') : null,
+          h(Note, null, '选「跟宿主默认走」就是空着，用 DSH 现在那个模型。'),
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, 'B站 那一头要个 Python 环境'),
+            h(Btn, { onClick: installPython, disabled: busy === 'python' },
+              busy === 'python' ? '正在装…' : (pyOk ? '重装' : '装一下'))),
+          h(Note, null, py?.hint || (pyOk ? `好了：${py.python}` : '还没装。装一次就行，几分钟。')),
+          h(Row, null,
+            h(Btn, { onClick: runDiagnose, disabled: busy === 'diag' }, '看看哪儿不对'),
+            h(Btn, { onClick: importOld, disabled: busy === 'import' }, '从旧插件导入')),
+          diag ? h('div', { 'data-cf-note': '' },
+            h('div', null, diag.verdict || (diag.ok ? '看着没问题。' : '有点问题。')),
+            Array.isArray(diag.checks) && diag.checks.length
+              ? h('ul', { 'data-cf-checks': '' },
+                diag.checks.map((c) => h('li', { key: c.key, 'data-ok': c.ok ? '1' : '0' },
+                  h('span', null, `${c.ok ? '✓' : '×'} ${c.label}`),
+                  h('span', null, ` — ${c.line}`),
+                  c.ok ? null : h('em', null, ` ${c.hint}`))))
+              : null,
+            diag.detail?.hint ? h('div', null, diag.detail.hint) : null,
+            diag.logTail ? h('pre', { 'data-cf-log': '' }, diag.logTail) : null) : null,
+        ],
+
+        display: [
+          h(Row, null,
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '侧栏留个入口'),
             h(Switch, { on: Boolean(val('showSidebar')), onChange: (v) => set('showSidebar', v) })),
           h(Note, null, '关掉之后侧栏就没有「蜻蛉」这个按钮了 —— 主区页还能从会话顶部那块进来。'),
-
           h(Row, null,
-            h('div', { 'data-cf-grow': '' }, h('div', { 'data-cf-label': '' }, '会话顶部挂「今天」')),
+            h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, '会话顶部挂「今天」'),
             h(Switch, { on: Boolean(val('showConversation')), onChange: (v) => set('showConversation', v) })),
           h(Note, null, '这是每个会话顶上那一块，显示当天挑出来的几条。嫌占地方就关掉。'),
-        ),
+        ],
+      }
 
-        h(Row, null,
-          h(Btn, { onClick: save, primary: true }, '保存'),
-          msg ? h('span', { 'data-cf-note': '' }, msg) : null,
-          Object.keys(dirty).length ? h('span', { 'data-cf-note': '' }, `有 ${Object.keys(dirty).length} 处改动没存`) : null),
-      )
+      return h('div', { 'data-cf-page': '', 'data-cf-wide': '', 'data-cf-set': '' },
+        h(StyleTag, null),
+        h('nav', { 'data-cf-nav': '' },
+          groups.map((g) => h('button', {
+            key: g.key, type: 'button',
+            'data-on': current.key === g.key ? '' : undefined,
+            'data-dirty': dirtyIn(g.keys) ? '' : undefined,
+            onClick: () => setTabKey(g.key),
+          }, h('i', null), g.label))),
+        h('div', { 'data-cf-pane': '' },
+          h('div', null,
+            h('div', { 'data-cf-pane-h': '' }, current.title),
+            h('div', { 'data-cf-pane-d': '' }, current.desc)),
+          panels[current.key] || null,
+          h('div', { 'data-cf-save': '' },
+            h(Btn, { onClick: save, primary: true }, '保存'),
+            msg ? h('span', { 'data-cf-note': '' }, msg) : null,
+            Object.keys(dirty).length
+              ? h('span', { 'data-cf-note': '' }, `有 ${Object.keys(dirty).length} 处改动没存`)
+              : null)))
     }
 
     // ── 主区整页 ──────────────────────────────────────────────────────────────

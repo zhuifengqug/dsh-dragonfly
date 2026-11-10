@@ -54,8 +54,11 @@ export const Config = !z ? undefined : z.object({
   sources: z.object({
     bili: describe(z.boolean()),
     douyin: describe(z.boolean()),
+    aihot: describe(z.boolean()),
   }),
   perDay: describe(z.number()),
+  aihotPerDay: describe(z.number()),
+  aihotMode: describe(z.string()),
   dyDailyMinutes: describe(z.number()),
   fetchPerRound: describe(z.number()),
   windows: describe(z.array(z.string())),

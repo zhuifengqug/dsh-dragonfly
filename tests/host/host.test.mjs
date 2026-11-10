@@ -173,11 +173,11 @@ test('dragonfly_status 在没有信源时报「跑不了」，不是报错', asy
   }
 })
 
-test('dragonfly_run 在两个信源都关着时明确说清楚', async () => {
+test('dragonfly_run 在三个信源都关着时明确说清楚', async () => {
   const home = await mkdtemp(join(tmpdir(), 'dragonfly-run-'))
   try {
     const ctx = makeCtx(home)
-    apply(ctx, { ...DEFAULTS, sources: { bili: false, douyin: false } })
+    apply(ctx, { ...DEFAULTS, sources: { bili: false, douyin: false, aihot: false } })
     const runTool = ctx.toolList.find((t) => t.name === 'dragonfly_run')
     const out = await runTool.execute({}, {})
     assert.equal(out.ok, false)
@@ -279,7 +279,7 @@ test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
     assert.match(s.line, /今日已收 \d+ 条/)
     assert.match(s.line, /额度 \d+/)
     assert.equal(s.running, false)
-    assert.deepEqual(s.sources, ['B站', '抖音'])
+    assert.deepEqual(s.sources, ['B站', '抖音', 'AI 圈'])
   } finally {
     await rm(home, { recursive: true, force: true })
   }
@@ -396,8 +396,13 @@ test('自动轮：失败不封窗，同一窗口最多试 2 次', async () => {
   process.env.DSH_HOME = join(home, 'dsh')
   try {
     const ctx = makeCtx(home)
-    // 这台机器上没有可用模型入口时 run() 必失败；正好用来验「失败只计数、不封窗」
-    const service = createDragonflyService(ctx, { pluginDir: process.cwd(), config: DEFAULTS, log: () => {} })
+    // 三个信源都关着 ⇒ run() 立刻以 no_source 失败。用它验「失败只计数、不封窗」，
+    // 顺带保证这条用例不落盘、不起进程、不打外网。
+    const service = createDragonflyService(ctx, {
+      pluginDir: process.cwd(),
+      config: { ...DEFAULTS, sources: { bili: false, douyin: false, aihot: false } },
+      log: () => {},
+    })
     const layout = layoutOf(service.status().home)
 
     service.tick()
