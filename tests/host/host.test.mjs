@@ -282,7 +282,7 @@ test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
   }
 })
 
-test('诊断逐项：六样都列出来，缺的那样要带「点哪儿」', async () => {
+test('诊断逐项：七样都列出来，缺的那样要带「点哪儿」', async () => {
   const home = await mkdtemp(join(tmpdir(), 'dragonfly-diag-'))
   const realDshHome = process.env.DSH_HOME
   // 把 DSH_HOME 指到临时目录：否则"从旧插件导入"会把真机上 bili-duty 的配置与凭据搬进来，
@@ -294,7 +294,10 @@ test('诊断逐项：六样都列出来，缺的那样要带「点哪儿」', as
 
     assert.equal(d.ok, true)
     assert.ok(Array.isArray(d.checks))
-    assert.deepEqual(d.checks.map((c) => c.key), ['python', 'bili', 'douyin', 'model', 'workspace', 'lastRun'])
+    assert.deepEqual(
+      d.checks.map((c) => c.key),
+      ['python', 'bili', 'douyin', 'model', 'workspace', 'dshEntry', 'lastRun'],
+    )
 
     for (const c of d.checks) {
       assert.equal(typeof c.label, 'string')
