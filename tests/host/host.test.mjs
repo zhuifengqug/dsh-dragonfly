@@ -8,6 +8,9 @@ import { test } from 'node:test'
 import { apply, Config, inject, name } from '../../index.js'
 import { createDragonflyService } from '../../lib/service.mjs'
 import { DEFAULTS } from '../../lib/config.mjs'
+import { layoutOf } from '../../lib/paths.mjs'
+import { loadDaily } from '../../lib/state.mjs'
+import { dayKey } from '../../lib/clock.mjs'
 
 /**
  * 假 ctx —— 只实现我们真用到的那几个口子。
@@ -382,3 +385,38 @@ test('诊断在依赖缺失时给的是人话，不是堆栈', async () => {
   }
 })
 
+
+// ── 调度：失败不吃窗口（11-08~10 连续失败却记成「跑过了」的回归） ─────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+test('自动轮：失败不封窗，同一窗口最多试 2 次', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-tick-'))
+  const realDshHome = process.env.DSH_HOME
+  // 指到临时 DSH_HOME：否则 ensureDutyProfile 会写到真机 profile 上去
+  process.env.DSH_HOME = join(home, 'dsh')
+  try {
+    const ctx = makeCtx(home)
+    // 这台机器上没有可用模型入口时 run() 必失败；正好用来验「失败只计数、不封窗」
+    const service = createDragonflyService(ctx, { pluginDir: process.cwd(), config: DEFAULTS, log: () => {} })
+    const layout = layoutOf(service.status().home)
+
+    service.tick()
+    await sleep(1500)
+    let daily = loadDaily(layout, dayKey()).daily
+    const keys = Object.keys(daily.windowTries || {})
+    assert.equal(keys.length, 1, '应该记下一个窗口的尝试次数')
+    assert.equal(daily.windowTries[keys[0]], 1)
+    assert.deepEqual(daily.windowsDone || [], [], '失败不该进 windowsDone')
+
+    service.tick()
+    await sleep(1500)
+    service.tick()
+    await sleep(1500)
+    daily = loadDaily(layout, dayKey()).daily
+    assert.equal(daily.windowTries[keys[0]], 2, '超过 AUTO_TRIES_PER_WINDOW 就不要再试')
+    assert.deepEqual(daily.windowsDone || [], [], '失败了还是不该封窗')
+  } finally {
+    process.env.DSH_HOME = realDshHome
+    await rm(home, { recursive: true, force: true })
+  }
+})
