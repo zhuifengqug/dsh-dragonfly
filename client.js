@@ -172,11 +172,38 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
 [data-cf-quote]{margin:2px 0 0;padding-left:9px;border-left:2px solid var(--dsw-alias-brand-primary,#4c7dff);
   font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary,#5b6068);}
 [data-cf-meta]{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#8b9199);}
-[data-cf-sub]{font-size:11px;font-weight:600;letter-spacing:.04em;margin:16px 0 2px;
-  color:var(--dsw-alias-label-tertiary,#8b9199);}
 [data-cf-line]{font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary,#5b6068);
   padding:3px 0;border-bottom:1px solid var(--dsw-alias-border-secondary,#f2f4f6);}
 [data-cf-line]:last-child{border-bottom:0;}
+
+/* ── 今天页：分节标题与「扫过没收的」清单 ─────────────────────────────────
+   长清单默认折起来，标题右侧带条数；每行 id 单独一列等宽字体，
+   理由最多三行，点一下展开 —— 一行一行读，不再是一堵墙。 */
+[data-cf-sec]{margin:20px 0 0;}
+[data-cf-sec]:first-child{margin-top:14px;}
+[data-cf-sec-h]{display:flex;align-items:center;gap:7px;margin:0 0 3px;padding:2px 0;
+  font-size:11px;font-weight:600;letter-spacing:.04em;list-style:none;
+  color:var(--dsw-alias-label-tertiary,#8b9199);cursor:pointer;}
+[data-cf-sec-h]::-webkit-details-marker{display:none;}
+[data-cf-sec-h]::marker{content:'';}
+[data-cf-sec-h]::before{content:'';flex:none;width:0;height:0;
+  border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;
+  opacity:.55;transition:transform .12s;}
+details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
+[data-cf-sec-h][data-cf-plain]{cursor:default;}
+[data-cf-sec-h][data-cf-plain]::before{display:none;}
+[data-cf-sec-n]{font-weight:500;opacity:.7;}
+[data-cf-skip]{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px 9px;
+  padding:7px 0 7px 12px;border-bottom:1px solid var(--dsw-alias-border-secondary,#f2f4f6);cursor:pointer;}
+[data-cf-skip]:last-child{border-bottom:0;}
+[data-cf-skip]:hover{background:var(--dsw-alias-bg-secondary,#f7f8f9);}
+[data-cf-skip-id]{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10.5px;line-height:17px;color:var(--dsw-alias-label-tertiary,#9aa0a6);white-space:nowrap;}
+[data-cf-skip-t]{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#5b6068);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+[data-cf-skip].is-open [data-cf-skip-t]{-webkit-line-clamp:99;display:block;}
+[data-cf-sum]{margin:2px 0 0;font-size:13px;line-height:22px;
+  color:var(--dsw-alias-label-primary,#2b3038);white-space:pre-wrap;}
 
 /* ── 设置页：左侧分组导航 + 右侧表单 ─────────────────────────────────────
    以后往里加一组，只加一条 nav 项和一个面板，不用再动版式。 */
@@ -374,26 +401,64 @@ a[data-cf-title]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
         e.quote ? h('div', { 'data-cf-quote': '' }, e.quote) : null,
         h('div', { 'data-cf-meta': '' }, `${SRC_LABEL[e.source] || e.source} · ${e.id || '没有 id'}`)))
 
-      // 「扫过没收的」之类：只有一行标题，写成清单就行，别也铺封面
-      const flatLine = (text, key) => h('div', { key, 'data-cf-line': '' }, text)
+      // 「扫过没收的」「评论复核」这类一行一条：id 单独一列，理由最多三行，点开看全
+      const skipRow = (raw, key) => {
+        const t = String(raw || '').replace(/\\\*/g, '*').replace(/^\s*[-–—·]\s*/, '')
+        const m = /^\[(B站|抖音|AIHOT)\]\s*([^\s:：]+)\s*[:：]\s*([\s\S]*)$/.exec(t)
+        const tag = m ? `${m[1]} ${m[2]}` : ''
+        const text = m ? m[3] : t
+        return h('div', {
+          key,
+          'data-cf-skip': '',
+          title: '点一下展开／收起',
+          onClick: (ev) => ev.currentTarget.classList.toggle('is-open'),
+        },
+        h('div', { 'data-cf-skip-id': '' }, tag || '·'),
+        h('div', { 'data-cf-skip-t': '' }, text))
+      }
 
+      // 一节一块：长清单默认折起来、标题右边给条数；「总结」直接摊开当正文，不当清单
       const secBlock = (s) => {
+        const title = s.title || ''
         const keep = (s.entries || []).filter(shown)
-        const lines = (s.lines || []).filter((l) => src === 'all'
-          || (src === 'bili' ? !/\[抖音\]/.test(l) : /\[抖音\]/.test(l)))
+        const matchSrc = (l) => (src === 'all' ? true
+          : src === 'bili' ? !/\[(抖音|AIHOT)\]/.test(l)
+            : src === 'douyin' ? /\[抖音\]/.test(l) : /\[AIHOT\]/.test(l))
+        const lines = (s.lines || []).filter(matchSrc)
         if (!keep.length && !lines.length) return null
-        return h('div', { key: s.key || s.title },
-          h('div', { 'data-cf-sub': '' }, s.title),
-          ...keep.map((e) => flatLine(`${e.title}${e.tier ? `　${e.tier}` : ''}`, e.id || e.title)),
-          ...lines.map((l, i) => flatLine(l, `${s.key || s.title}-${i}`)))
+        const n = keep.length + lines.length
+        const head = (plain) => h(plain ? 'div' : 'summary', {
+          'data-cf-sec-h': '', 'data-cf-plain': plain ? '' : undefined,
+        }, title, h('span', { 'data-cf-sec-n': '' }, n))
+
+        if (/总结/.test(title)) {
+          return h('div', { key: s.key || title, 'data-cf-sec': '' }, head(true),
+            h('p', { 'data-cf-sum': '' },
+              lines.map((l) => l.replace(/^\s*[-–—·]\s*/, '')).join('\n')))
+        }
+
+        const body = [
+          ...keep.map((e) => skipRow(`${e.title}${e.tier ? ` —— ${e.tier}` : ''}`, e.id || e.title)),
+          ...lines.map((l, i) => skipRow(l, `${s.key || title}-${i}`)),
+        ]
+        if (!/扫过没收|评论复核|跳过|私信/.test(title)) {
+          return h('div', { key: s.key || title, 'data-cf-sec': '' }, head(true), ...body)
+        }
+        return h('details', {
+          key: s.key || title,
+          'data-cf-sec': '',
+          open: /扫过没收|评论复核/.test(title) ? undefined : '',
+        }, head(false), ...body)
       }
 
       // AIHOT 转述块：它不是「挑出来的」，所以单独一节，标题明说这是转述
       const aihotBlock = () => {
         if (!aihotEntries.length) return null
         if (src !== 'all' && src !== 'aihot') return null
-        return h('div', { key: 'aihot' },
-          h('div', { 'data-cf-sub': '' }, 'AI 圈（AIHOT）· 原样转述，不参与挑档'),
+        return h('div', { key: 'aihot', 'data-cf-sec': '' },
+          h('div', { 'data-cf-sec-h': '', 'data-cf-plain': '' },
+            'AI 圈（AIHOT）· 原样转述，不参与挑档',
+            h('span', { 'data-cf-sec-n': '' }, aihotEntries.length)),
           ...aihotEntries.map(entryCard))
       }
 
