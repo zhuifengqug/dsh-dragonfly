@@ -193,11 +193,19 @@ test('只开 AIHOT：不走模型也能出一份日报', async () => {
   }
 })
 
-test('aihotPromptNote：把 AI 圈标题列成清单，取不到时说清原因', () => {
-  assert.equal(
-    aihotPromptNote({ ok: true, items: [{ title: '甲', source: '某站' }, { title: '乙' }] }),
-    '- 甲（某站）\n- 乙',
-  )
+test('aihotPromptNote：每条都带上正文，取不到时说清原因', () => {
+  const note = aihotPromptNote({
+    ok: true,
+    lead: { title: '头条甲', text: '一句话说清' },
+    items: [
+      { title: '某公司发布新模型', source: 'Meta', summary: '支持工具调用与长文档解析。' },
+      { title: '没有正文的那条' },
+    ],
+  })
+  assert.match(note, /^头条：头条甲 —— 一句话说清$/m)
+  assert.match(note, /^- 某公司发布新模型（Meta）$/m)
+  assert.match(note, /^ {2}支持工具调用与长文档解析。$/m)
+  assert.match(note, /^- 没有正文的那条$/m)
   assert.match(aihotPromptNote({ ok: true, items: [] }), /没有内容/)
   assert.match(aihotPromptNote({ ok: false, reason: 'HTTP 503' }), /没取到：HTTP 503/)
   assert.match(aihotPromptNote(null), /没取到/)
