@@ -133,10 +133,8 @@ window.__ModuleLoader__.load({
 [data-cf-conv] [data-cf-page]{max-width:none;padding:0 16px 2px;}
 
 /* ── 筛选：先信源，再档位，最后日期 ───────────────────────────────────── */
-/* 筛子压成一行：会话顶部那块只有几百像素，三行筛子把日报全挤出屏幕了 */
-[data-cf-filters]{display:flex;flex-direction:row;align-items:center;gap:8px;padding:5px 0 5px;}
+/* 档位 chip 和日期条都挤在今天页顶部那一行里，会话顶部本来就矮 */
 [data-cf-spacer]{flex:1;min-width:0;}
-[data-cf-filters] [data-cf-chips]{flex:1;min-width:0;}
 [data-cf-day]{flex:none;font-size:11px;line-height:18px;padding:2px 4px;border-radius:6px;min-width:0;
   border:1px solid var(--dsw-alias-border-secondary,#d9dde2);background:transparent;
   color:var(--dsw-alias-label-secondary,#5b6068);font-family:inherit;cursor:pointer;}
@@ -210,6 +208,31 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
 [data-cf-skip].is-open [data-cf-skip-t]{-webkit-line-clamp:99;display:block;}
 [data-cf-sum]{margin:2px 0 0;font-size:13px;line-height:22px;
   color:var(--dsw-alias-label-primary,#2b3038);white-space:pre-wrap;}
+
+/* ── 今天页：正上方日期条 + 左侧栏目（可收起） + 右侧内容 ───────────────── */
+[data-cf-page][data-cf-today]{display:flex;flex-direction:column;gap:6px;max-width:none;}
+[data-cf-topbar]{display:flex;align-items:center;gap:8px;padding:2px 0 5px;
+  border-bottom:1px solid var(--dsw-alias-border-secondary,#f2f4f6);}
+[data-cf-grow-l],[data-cf-grow-r]{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px;}
+[data-cf-grow-r]{justify-content:flex-end;}
+[data-cf-fold-btn]{appearance:none;flex:none;width:22px;height:22px;padding:0;line-height:1;
+  border:1px solid var(--dsw-alias-border-secondary,#d9dde2);border-radius:6px;background:transparent;
+  cursor:pointer;font-size:12px;font-family:inherit;color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-fold-btn]:hover{border-color:var(--dsw-alias-brand-primary,#4c7dff);}
+[data-cf-datebar]{display:flex;align-items:center;gap:2px;flex:none;}
+[data-cf-step]{appearance:none;border:0;background:transparent;cursor:pointer;padding:0 3px;
+  font-size:13px;line-height:20px;font-family:inherit;
+  color:var(--dsw-alias-label-secondary,#5b6068);}
+[data-cf-step]:hover{color:var(--dsw-alias-brand-primary,#4c7dff);}
+[data-cf-step]:disabled{opacity:.22;cursor:default;color:inherit;}
+[data-cf-split]{display:flex;flex-direction:row;align-items:flex-start;gap:16px;min-height:0;}
+/* 今天页的栏目列比设置页窄：设置页写的是长文案，这边只有两个字的栏目名 */
+[data-cf-nav][data-cf-todaynav]{flex:0 0 104px;width:104px;top:0;}
+[data-cf-nav][data-cf-todaynav] button{justify-content:space-between;padding:6px 9px;font-size:13px;}
+[data-cf-nav-n]{flex:none;font-size:11px;font-weight:400;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
+[data-cf-nav][data-cf-todaynav] button[data-on] [data-cf-nav-n]{color:inherit;font-weight:600;}
+[data-cf-split] > [data-cf-pane]{padding-left:16px;gap:0;}
+[data-cf-split] > [data-cf-pane]:first-child{border-left:0;padding-left:0;}
 
 /* ── 设置页：左侧分组导航 + 右侧表单 ─────────────────────────────────────
    以后往里加一组，只加一条 nav 项和一个面板，不用再动版式。 */
@@ -319,7 +342,8 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
       const [day, setDay] = useState('')
       const [days, setDays] = useState([])
       const [data, setData] = useState(null)
-      const [src, setSrc] = useState('all')
+      const [tab, setTab] = useState('all')        // 总览 / B站 / 抖音 / AI 圈 / 报告
+      const [navOpen, setNavOpen] = useState(true) // 左侧栏目列可以收进去
       const [tier, setTier] = useState('all')
       const [err, setErr] = useState('')
 
@@ -342,6 +366,8 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
 
       const view = data?.view
       const sections = view?.sections || []
+      // 左侧栏目决定看哪一块：总览 = B站 + 抖音 + AI 圈；报告 = 扫过没收的 / 总结 / 评论复核
+      const src = tab === 'report' ? 'all' : tab
       const picks = sections.find((s) => s.key === 'picks')?.entries || []
       const shown = (e) => (src === 'all' || e.source === src)
         && (tier === 'all' || e.tier === tier)
@@ -369,11 +395,6 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
           onClick: onRun,
         }, busy ? '跑着呢…' : text)
         : null)
-
-      const chip = (key, label, n) => h('button', {
-        key, type: 'button', 'data-cf-chip': '', 'data-on': src === key ? '' : undefined,
-        onClick: () => setSrc(key),
-      }, n ? `${label} ${n}` : label)
 
       // 档位 chip 单独一套：它跟信源是两个正交的筛子，选中态各看各的
       const tierChip = (key, label, n) => h('button', {
@@ -457,66 +478,114 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
         }, head(false), ...body)
       }
 
-      // AIHOT 转述块：它不是「挑出来的」，所以单独一节，标题明说这是转述
-      const aihotBlock = () => {
-        if (!aihotEntries.length) return null
-        if (src !== 'all' && src !== 'aihot') return null
-        return h('div', { key: 'aihot', 'data-cf-sec': '' },
+      // 报告那一栏装的就是这些旁注（扫过没收的 / 总结 / 评论复核 / 私信）
+      const reportCount = rest.reduce((n, s) => n + (s.entries || []).length + (s.lines || []).length, 0)
+
+      const navItems = [
+        { key: 'all', label: '总览', n: countOf('all') + aihotEntries.length },
+        { key: 'bili', label: 'B站', n: countOf('bili') },
+        { key: 'douyin', label: '抖音', n: countOf('douyin') },
+        { key: 'aihot', label: 'AI 圈', n: countOf('aihot') },
+        { key: 'report', label: '报告', n: reportCount },
+      ]
+
+      // 总览里按信源分组：每组一个小标题带条数，先一眼看全，再进单栏细看
+      const groupCard = (key, list) => (list.length
+        ? h('div', { key, 'data-cf-sec': '' },
           h('div', { 'data-cf-sec-h': '', 'data-cf-plain': '' },
-            'AI 圈（AIHOT）· 原样转述，不参与挑档',
-            h('span', { 'data-cf-sec-n': '' }, aihotEntries.length)),
-          ...aihotEntries.map(entryCard))
+            SRC_LABEL[key] || key, h('span', { 'data-cf-sec-n': '' }, list.length)),
+          ...list.map(entryCard))
+        : null)
+
+      const pane = () => {
+        if (tab === 'report') {
+          const blocks = rest.map(secBlock).filter(Boolean)
+          return blocks.length ? h('div', null, ...blocks)
+            : h('div', { 'data-cf-empty': '' }, '这一天没有旁注。')
+        }
+        if (tab === 'aihot') {
+          return aihotEntries.length
+            ? h('div', null, ...aihotEntries.map(entryCard))
+            : h('div', { 'data-cf-empty': '' }, '这一天 AI 圈没取到东西。')
+        }
+        if (tab === 'bili' || tab === 'douyin') {
+          const list = picked.filter((e) => e.source === tab)
+          return list.length
+            ? h('div', null, ...list.map(entryCard))
+            : h('div', { 'data-cf-empty': '' }, `这一天没从${SRC_LABEL[tab]}收。`)
+        }
+        const bili = picked.filter((e) => e.source === 'bili')
+        const dy = picked.filter((e) => e.source === 'douyin')
+        if (!bili.length && !dy.length && !aihotEntries.length) {
+          return h('div', { 'data-cf-empty': '' }, '这一天一条都没收。')
+        }
+        return h('div', null,
+          groupCard('bili', bili),
+          groupCard('douyin', dy),
+          groupCard('aihot', aihotEntries))
       }
 
-      return h('div', { 'data-cf-page': '', 'data-cf-wide': compact && !wide ? undefined : '' },
-        h(StyleTag, null),
+      // 日期条：正上方居中，左右能翻；最左边的按钮把栏目列收进去
+      const curDay = day || data?.day || days[0] || ''
+      const dayIdx = days.indexOf(curDay)
+      const step = (delta) => {
+        const j = dayIdx + delta
+        if (dayIdx < 0 || j < 0 || j >= days.length) return
+        setDay(days[j])
+      }
 
-        // 筛子要钉在顶上：会话顶部那块高度只有四百来像素，
-        // 往下翻两条 chip 就滚没了，想换档位还得先滚回顶部。
-        h('div', { 'data-cf-filters': '', 'data-cf-sticky': '' },
-          h('div', { 'data-cf-chips': '' },
-            chip('all', '全部', countOf('all')),
-            chip('bili', 'B站', countOf('bili')),
-            chip('douyin', '抖音', countOf('douyin')),
-            aihotEntries.length ? chip('aihot', 'AI 圈', countOf('aihot')) : null,
-            tierKeys.length > 1 ? h('span', { 'data-cf-chip-gap': '' }) : null,
-            tierKeys.length > 1 ? tierChip('all', '全档', 0) : null,
-            tierKeys.length > 1 ? tierKeys.map((t) => tierChip(t, t, tierCount(t))) : null),
-          h('div', { 'data-cf-spacer': '' }),
-          days.length > 1 || day
-            ? h('select', {
-              'data-cf-day': '',
-              title: '换一天看',
-              value: day || data?.day || '',
-              onChange: (e) => setDay(e.target.value),
-            },
-              h('option', { value: '' }, '最近一天'),
-              days.map((d) => h('option', { key: d, value: d }, d)))
-            : null),
+      return h('div', {
+        'data-cf-page': '', 'data-cf-today': '',
+        'data-cf-wide': compact && !wide ? undefined : '',
+      },
+      h(StyleTag, null),
 
-        !data ? h('div', { 'data-cf-empty': '' }, '正在读…')
-          : !data.exists ? h('div', { 'data-cf-empty': '' },
-            h('div', null, '还没采过。'),
-            runBtn('现在就跑'),
-            h('div', { 'data-cf-note': '' }, '到点会自动跑一轮，也可以现在点一下。'))
-            : picked.length === 0 && !aihotEntries.length
-              && rest.every((s) => !(s.entries || []).length && !(s.lines || []).length)
-              ? h('div', { 'data-cf-empty': '' }, '这一天的日报是空的。')
-              : h('div', null,
-                picked.length
-                  ? h('div', null, picked.map(entryCard))
-                  : aihotBlock() ? null : h('div', { 'data-cf-empty': '' },
-                    (() => {
-                      const bySrc = src === 'all' ? '' : (SRC_LABEL[src] || src)
-                      if (tier !== 'all') {
-                        return bySrc
-                          ? `这一天没有「${tier}」的${bySrc}条目。`
-                          : `这一天没有「${tier}」的条目。`
-                      }
-                      return bySrc ? `这一天没有${bySrc}的条目。` : '这一天一条都没收。'
-                    })()),
-                aihotBlock(),
-                rest.map(secBlock)),
+      h('div', { 'data-cf-topbar': '' },
+        h('div', { 'data-cf-grow-l': '' },
+          h('button', {
+            type: 'button', 'data-cf-fold-btn': '', 'data-on': navOpen ? '' : undefined,
+            title: navOpen ? '收起栏目' : '展开栏目',
+            onClick: () => setNavOpen((v) => !v),
+          }, navOpen ? '‹' : '≡')),
+        h('div', { 'data-cf-datebar': '' },
+          h('button', {
+            type: 'button', 'data-cf-step': '',
+            disabled: dayIdx <= 0 ? '' : undefined,
+            title: '前一天', onClick: () => step(1),
+          }, '‹'),
+          h('select', {
+            'data-cf-day': '', title: '换一天看',
+            value: curDay,
+            onChange: (e) => setDay(e.target.value),
+          }, days.map((d) => h('option', { key: d, value: d }, d))),
+          h('button', {
+            type: 'button', 'data-cf-step': '',
+            disabled: dayIdx < 0 || dayIdx >= days.length - 1 ? '' : undefined,
+            title: '后一天', onClick: () => step(-1),
+          }, '›')),
+        h('div', { 'data-cf-grow-r': '' },
+          tierKeys.length > 1
+            ? h('div', { 'data-cf-chips': '' },
+              tierChip('all', '全档', 0),
+              tierKeys.map((t) => tierChip(t, t, tierCount(t))))
+            : null)),
+
+      h('div', { 'data-cf-split': '' },
+        navOpen
+          ? h('nav', { 'data-cf-nav': '', 'data-cf-todaynav': '' },
+            navItems.map((it) => h('button', {
+              key: it.key, type: 'button',
+              'data-on': tab === it.key ? '' : undefined,
+              onClick: () => setTab(it.key),
+            }, it.label, h('span', { 'data-cf-nav-n': '' }, it.n))))
+          : null,
+        h('div', { 'data-cf-pane': '' },
+          !data ? h('div', { 'data-cf-empty': '' }, '正在读…')
+            : !data.exists ? h('div', { 'data-cf-empty': '' },
+              h('div', null, '还没采过。'),
+              runBtn('现在就跑'),
+              h('div', { 'data-cf-note': '' }, '到点会自动跑一轮，也可以现在点一下。'))
+              : pane())),
       )
     }
 
