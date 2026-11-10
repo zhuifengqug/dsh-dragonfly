@@ -1,8 +1,10 @@
 # 虫珀·蜻蛉
 
-旧时派人采风呈报；如今每天替你巡一遍 B站与抖音，把值得看的挑出来写成日报。
+旧时派人采风呈报；如今每天替你巡一遍 B站、抖音和 AI 圈，把值得看的挑出来写成日报。
 
 「蜻蛉」是旧时派出去搜集风物的人，回来把见闻呈报。这个插件干的就是这件事：一天跑一轮，只读、只挑、只写 Markdown——不建库、不做索引、不做自动互动机器人。
+
+装好之后，侧栏多一个「蜻蛉」入口，会话顶部多一块「今天」；设置页左侧六个词（采什么 / 怎么挑 / 写到哪 / 互动 / 运行环境 / 显示）就是它的全部开关。
 
 ## 能做什么
 
@@ -56,13 +58,13 @@ dsh plugin --profile desktop add link:D:/dsh-workspaces/dev/虫珀/蜻蛉
 dsh plugin --profile desktop add @zhuifengqug/dsh-dragonfly
 ```
 
-已发布到 npm，当前版本 `0.1.3`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.3`；升级时把版本号换成新的，再执行一次同样的命令。
+已发布到 npm，当前版本 `0.1.4`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.4`；升级时把版本号换成新的，再执行一次同样的命令。
 
 ### 第一次用
 
 1. 设置页 → 蜻蛉 → 运行环境 → 装 Python 环境（约半分钟）
 2. 扫二维码登录 B站；抖音点一下开浏览器登录
-3. 「信源与额度」里选信源、定每天几条
+3. 「采什么」里选信源、定每天几条（AI 圈不用登录，开着就有）
 4. 点「现在就跑」试一轮，去「今天」看结果
 
 ## 数据在哪
