@@ -59,8 +59,8 @@ function fixture({ sessionId = 'session-demo', startedOn = '2026-11-04', withFil
   return { base, layout, sessions, cleanup: () => rmSync(base, { recursive: true, force: true }) }
 }
 
-test('软上限就是 120K tokens', () => {
-  assert.equal(CONTEXT_LIMIT_TOKENS, 120_000)
+test('软上限就是 200K tokens', () => {
+  assert.equal(CONTEXT_LIMIT_TOKENS, 200_000)
   assert.equal(SESSION_MAX_DAYS, 14)
 })
 
@@ -69,12 +69,12 @@ test('上下文还宽裕：接着写同一条，并把占用写进理由', () =>
   try {
     const r = pickDutySession({ layout: f.layout, sessionsRoot: f.sessions, cwd: CWD, today: '2026-11-04' })
     assert.equal(r?.id, 'session-demo')
-    assert.match(r.why, /上下文 43K\/120K/)
+    assert.match(r.why, /上下文 43K\/200K/)
   } finally { f.cleanup() }
 })
 
 test('上下文到软上限：另起一条，并说清多大', () => {
-  const f = fixture({ totals: [60_000, 131_000] })
+  const f = fixture({ totals: [60_000, 213_000] })
   try {
     const lines = []
     const r = pickDutySession({
@@ -82,7 +82,7 @@ test('上下文到软上限：另起一条，并说清多大', () => {
       log: (l) => lines.push(l),
     })
     assert.equal(r, null)
-    assert.match(lines[0], /已经 131K（软上限 120K）/)
+    assert.match(lines[0], /已经 213K（软上限 200K）/)
   } finally { f.cleanup() }
 })
 
@@ -91,7 +91,7 @@ test('跨了很多天也不换 —— 只认上下文，不认日历', () => {
   try {
     const r = pickDutySession({ layout: f.layout, sessionsRoot: f.sessions, cwd: CWD, today: '2026-11-11' })
     assert.equal(r?.id, 'session-demo')
-    assert.match(r.why, /上下文 20K\/120K/)
+    assert.match(r.why, /上下文 20K\/200K/)
   } finally { f.cleanup() }
 })
 
@@ -159,7 +159,7 @@ test('记录里没有起始日：只要上下文没满就接着写', () => {
   try {
     const r = pickDutySession({ layout: f.layout, sessionsRoot: f.sessions, cwd: CWD, today: '2026-11-04' })
     assert.equal(r?.id, 'session-demo')
-    assert.match(r.why, /上下文 12K\/120K/)
+    assert.match(r.why, /上下文 12K\/200K/)
   } finally { f.cleanup() }
 })
 
