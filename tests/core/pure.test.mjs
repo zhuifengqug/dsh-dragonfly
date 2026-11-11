@@ -283,6 +283,39 @@ test('dayKey 用本机日期', () => {
 
 
 
+test('AI 圈条目被写进「今天挑的」也按标签归位：不算挑选、合并时搬回 AI 圈那节', () => {
+  const id = 'wrxlh5gesmj36fresoxbriak2'
+  const text = [
+    '# 2026-11-11',
+    '',
+    `### [AIHOT] ${id} / 一条转述`,
+    '**说了什么**：x',
+    '',
+    '### [B站] BV1TFWj6DESH / 一条视频',
+    '**档位**：值得看',
+    '',
+    '## AI 圈（AIHOT）',
+    '',
+    '## 总结',
+    '',
+    '收了 1 条。',
+  ].join('\n')
+  // 算账：AI 圈单独数，不计入「值得看」
+  const c = countPicks(text)
+  assert.equal(c.good, 1)
+  assert.equal(c.bySource.aihot, 1)
+  // 界面：AI 圈条目回到 aihot 那一节
+  const v = reportView(text)
+  assert.deepEqual(v.sections.filter((s) => s.key === 'picks')[0].entries.map((e) => e.source), ['bili'])
+  assert.equal(v.sections.find((s) => s.key === 'aihot').entries.length, 1)
+  // 合并：文件本身也被搬回 AI 圈那节，且不留重复
+  const m = mergeReport(text, `# 2026-11-11\n\n### [AIHOT] ${id} / 一条转述\n**说了什么**：x\n`, '2026-11-11')
+  const aihotAt = m.text.indexOf('## AI 圈（AIHOT）')
+  const entryAt = m.text.indexOf(`### [AIHOT] ${id}`)
+  assert.ok(entryAt > aihotAt, 'AI 圈条目应该在它自己那节标题后面')
+  assert.equal(m.text.split(id).length - 1, 1, '同一个 id 不该出现两次')
+})
+
 test('reportView 把「因缺证据跳过」「扫过没收的」「总结」都分开给，界面才不会把它们混成条目', () => {
   const text = [
     '# 2026-11-02',
