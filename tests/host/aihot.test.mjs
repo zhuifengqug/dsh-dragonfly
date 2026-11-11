@@ -187,6 +187,9 @@ test('只开 AIHOT：不走模型也能出一份日报', async () => {
     assert.match(out.report.text, /## AI 圈（AIHOT）/)
     assert.match(out.report.text, /### \[AIHOT\] abcdefghij0123456789klmn \/ 某公司发布新模型/)
     assert.equal(svc.status().picks?.bySource?.aihot ?? 1, 1)
+    assert.equal(svc.status().quota.aihotRuns, 0, '手动那一轮记账在手动格子里')
+    assert.equal(svc.status().quota.manualRuns, 1)
+    assert.equal(svc.status().quota.autoRuns, 0)
   } finally {
     globalThis.fetch = realFetch
     await rm(home, { recursive: true, force: true })
