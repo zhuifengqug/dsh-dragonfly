@@ -189,14 +189,16 @@ test('reportView 由 id 推出视频地址，不认日报里没写的链接', ()
 
 // ── 配置 ─────────────────────────────────────────────────────────────────────
 test('clampConfig 越界值夹住、认不出的退回默认、永不抛', () => {
-  const c = clampConfig({ autoPerSource: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', runTimes: ['瞎写', '25:99', '8:05']   })
-  assert.equal(c.autoPerSource, 30)
+  const c = clampConfig({ biliPerRound: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', runTimes: ['瞎写', '25:99', '8:05']   })
+  assert.equal(c.biliPerRound, 30)
   assert.equal(c.dyDailyMinutes, 0)
   assert.equal(c.searchSort, DEFAULTS.searchSort)
   assert.equal(c.dmMode, 'read')
   assert.deepEqual(c.runTimes, ['08:05'], '认不出的丢掉，剩下的补零')
   assert.deepEqual(clampConfig({ runTimes: ['9:00', '9:00', '18:00'] }).runTimes, ['09:00', '18:00'], '去重并按先后排')
   assert.deepEqual(clampConfig({ runTimes: [] }).runTimes, DEFAULTS.runTimes, '一条都不剩就退回默认三个')
+  assert.deepEqual(clampConfig({}).aihotTimes, ['12:00'], 'AI 圈默认 12:00 一次')
+  assert.deepEqual(clampConfig({ aihotTimes: ['7:05', '07:05', '瞎写'] }).aihotTimes, ['07:05'], 'AI 圈时间同样去重补零')
 })
 
 test('clampConfig 在 dmEnabled=false 时把 auto 降回 read（对外发言要单独开）', () => {
@@ -207,14 +209,14 @@ test('clampConfig 在 dmEnabled=false 时把 auto 降回 read（对外发言要�
 test('clampConfig 传垃圾也不炸', () => {
   for (const junk of [null, undefined, 'x', 42, [], { model: 'oops', sources: 7 }]) {
     const c = clampConfig(junk)
-    assert.equal(typeof c.autoPerSource, 'number')
+    assert.equal(typeof c.biliPerRound, 'number')
   }
 })
 
 test('diffKeys 只报真变了的键', () => {
   const a = clampConfig({})
-  const b = clampConfig({ autoPerSource: 9 })
-  assert.deepEqual(diffKeys(a, b), ['autoPerSource'])
+  const b = clampConfig({ biliPerRound: 9 })
+  assert.deepEqual(diffKeys(a, b), ['biliPerRound'])
 })
 
 test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建）', () => {
@@ -227,7 +229,7 @@ test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建�
 })
 
 test('pickKnownKeys 丢掉不认识的键', () => {
-  assert.deepEqual(pickKnownKeys({ autoPerSource: 3, 乱写: 1 }), { autoPerSource: 3 })
+  assert.deepEqual(pickKnownKeys({ biliPerRound: 3, 乱写: 1 }), { biliPerRound: 3 })
 })
 
 // ── 时间窗 ───────────────────────────────────────────────────────────────────

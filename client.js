@@ -621,6 +621,7 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
       // 关键词框的本地草稿：输入时原样保留（否则每打一个逗号就被 split→join 吃掉），失焦再收回规范写法
       const [kwText, setKwText] = useState(null)
     const [timeText, setTimeText] = useState('')
+      const [aihotTimeText, setAihotTimeText] = useState('')
 
       useEffect(() => {
         jget('/config').then((r) => { setCfg(r.config || {}); setLabels(r.labels || {}) })
@@ -751,9 +752,9 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
       // 以后要加功能，就在这儿加一条 + 下面加一个面板，版式不用动。
       const groups = [
         { key: 'sources', label: '采什么', title: '采什么', desc: '从哪儿采。关掉的那个源，那一轮就不去。',
-          keys: ['sources', 'aihotPerDay', 'aihotMode', 'dyDailyMinutes', 'favoritesEnabled'] },
+          keys: ['sources', 'dyDailyMinutes', 'favoritesEnabled'] },
         { key: 'pick', label: '怎么挑', title: '怎么挑', desc: '几点自己跑、跑几轮、每轮每个源收几条、手动怎么收、认哪些词、日报写多细。',
-          keys: ['runTimes', 'peakValley', 'autoRuns', 'autoPerSource', 'manualPerSource', 'manualCooldownMin', 'keywords', 'fetchPerRound', 'reportLevel'] },
+          keys: ['runTimes', 'peakValley', 'autoRuns', 'biliPerRound', 'douyinPerRound', 'aihotTimes', 'aihotPerDay', 'aihotMode', 'biliManual', 'douyinManual', 'aihotManual', 'manualCooldownMin', 'keywords', 'fetchPerRound', 'reportLevel'] },
         { key: 'output', label: '写到哪', title: '写到哪', desc: '日报、单片笔记、值班轮的工作目录。',
           keys: ['outputDir', 'workspaceDir', 'notesEnabled'] },
         { key: 'interact', label: '互动', title: '互动', desc: '要不要在 B站 上说话 —— 评论和私信。',
@@ -808,18 +809,7 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
             })),
           h('div', { 'data-cf-card-k': '' },
             h('div', { 'data-cf-note': '' }, '免登录、只读。转述同行（aihot.news）的 AI 日报，不参与挑选、不算进视频额度。'),
-            h('div', { 'data-cf-row': '' },
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '每天取'),
-              h(Num, { value: val('aihotPerDay'), min: 0, max: 20, onChange: (v) => set('aihotPerDay', v) }),
-              h('span', { 'data-cf-note': '' }, '条')),
-            h('div', { 'data-cf-row': '' },
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '取哪一种'),
-              h('select', {
-                'data-cf-input': '', value: val('aihotMode') || 'daily',
-                onChange: (e) => set('aihotMode', e.target.value),
-              },
-                h('option', { value: 'daily' }, '当天日报'),
-                h('option', { value: 'selected' }, '24h 精选'))))),
+            h('div', { 'data-cf-note': '' }, '时间和条数在右边「怎么挑」里设。'))),
       ]
 
       // ② 其余五个面板：每块只放它自己的东西，行与行之间靠间距分组
@@ -836,7 +826,7 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
         ],
 
         pick: [
-          h(Sec, { title: '什么时候跑' },
+          h(Sec, { title: '视频什么时候跑' },
             h('div', { 'data-cf-times': '' },
               (val('runTimes') || []).length
                 ? (val('runTimes') || []).map((t, i) => h('span', {
@@ -875,27 +865,79 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.peakValley || '只在谷时跑'),
               h(Switch, { on: Boolean(val('peakValley')), onChange: (v) => set('peakValley', v) })),
-            h(Note, null, `到点后一小时内都算这一轮。默认三个（${(DEFAULT_TIMES).join(' / ')}）都在谷时，点 × 去掉，想加几点加几点，最多 8 个。${status?.schedule?.text ? `今天：${status.schedule.text}。` : ''}`)),
-          h(Sec, { title: '自动跑' },
+            h(Note, null, `视频到点后一小时内都算这一轮。默认三个（${(DEFAULT_TIMES).join(' / ')}）都在谷时，点 × 去掉，想加几点加几点，最多 8 个。${status?.schedule?.text ? `今天：${status.schedule.text}。` : ''}`)),
+          h(Sec, { title: '视频自动跑' },
             h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoRuns || '每天最多跑几轮'),
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoRuns || '视频源每天最多跑几轮'),
               h(Num, { value: val('autoRuns'), min: 0, max: 24, onChange: (v) => set('autoRuns', v) })),
             h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoPerSource || '每个源每轮最多收几条'),
-              h(Num, { value: val('autoPerSource'), min: 0, max: 30, onChange: (v) => set('autoPerSource', v) })),
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.biliPerRound || 'B站每轮最多收几条'),
+              h(Num, { value: val('biliPerRound'), min: 0, max: 30, onChange: (v) => set('biliPerRound', v) })),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.douyinPerRound || '抖音每轮最多收几条'),
+              h(Num, { value: val('douyinPerRound'), min: 0, max: 30, onChange: (v) => set('douyinPerRound', v) })),
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.fetchPerRound || '每轮最多细看几条'),
               h(Num, { value: val('fetchPerRound'), min: 1, max: 30, onChange: (v) => set('fetchPerRound', v) })),
-            h(Note, null, '细看 = 拉字幕/抽帧那种。这个只限制看的量，不影响收几条。'),
-            h(Note, null, `今天会自己跑的时间：${status?.schedule?.text || '—'}。今天还能跑 ${status?.schedule?.runsLeft ?? '—'} 轮。`)),
-          h(Sec, { title: '手动跑' },
+            h(Note, null, '细看 = 拉字幕/抽帧那种。只限制看的量，不影响收几条。'),
+            h(Note, null, `视频今天会自己跑：${status?.schedule?.text || '—'}。今天还能跑 ${status?.schedule?.runsLeft ?? '—'} 轮。`)),
+          h(Sec, { title: 'AI 圈（AIHOT）' },
+            h('div', { 'data-cf-times': '' },
+              (val('aihotTimes') || []).length
+                ? (val('aihotTimes') || []).map((t, i) => h('span', { 'data-cf-time': '' },
+                  h('b', null, t),
+                  h('button', {
+                    type: 'button',
+                    title: '去掉这个时间',
+                    onClick: () => {
+                      const a = [...(val('aihotTimes') || [])]
+                      a.splice(i, 1)
+                      set('aihotTimes', a)
+                    },
+                  }, '×')))
+                : h('span', { 'data-cf-times-empty': '' }, '没设时间 —— 打开 DSH 时补一次。')),
             h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.manualPerSource || '每个源最多收几条'),
-              h(Num, { value: val('manualPerSource'), min: 0, max: 30, onChange: (v) => set('manualPerSource', v) })),
+              h('input', {
+                'data-cf-input': '', type: 'time', step: 300,
+                value: aihotTimeText,
+                onChange: (e) => setAihotTimeText(e.target.value),
+              }),
+              h(Btn, {
+                onClick: () => {
+                  const t = String(aihotTimeText || '').trim()
+                  if (!/^\d{1,2}:\d{2}$/.test(t)) { setMsg('先挑一个时间，再点加。'); return }
+                  const a = [...(val('aihotTimes') || [])]
+                  if (a.includes(t)) { setMsg(`${t} 已经在里面了。`); return }
+                  a.push(t); a.sort(); set('aihotTimes', a); setAihotTimeText(''); setMsg('')
+                },
+              }, '加一个时间')),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.aihotPerDay || 'AI 圈每天取几条'),
+              h(Num, { value: val('aihotPerDay'), min: 0, max: 30, onChange: (v) => set('aihotPerDay', v) })),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.aihotMode || '取哪一种'),
+              h('select', {
+                'data-cf-input': '', value: val('aihotMode') || 'daily',
+                onChange: (e) => set('aihotMode', e.target.value),
+              },
+                h('option', { value: 'daily' }, '当天日报'),
+                h('option', { value: 'selected' }, '24h 精选'))),
+            h(Note, null, `到点会单独起一轮，让模型读过每条正文再写简述，不占视频的轮数。今天：${status?.schedule?.aihotText || '—'}。`),
+            h(Note, null, '设了时间就按时间跑；一个时间都不设，就在你打开 DSH 时补一次。')),
+          h(Sec, { title: '手动跑（点一次收多少）' },
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.biliManual || 'B站收几条'),
+              h(Num, { value: val('biliManual'), min: 0, max: 30, onChange: (v) => set('biliManual', v) })),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.douyinManual || '抖音收几条'),
+              h(Num, { value: val('douyinManual'), min: 0, max: 30, onChange: (v) => set('douyinManual', v) })),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.aihotManual || 'AI 圈收几条'),
+              h(Num, { value: val('aihotManual'), min: 0, max: 30, onChange: (v) => set('aihotManual', v) })),
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.manualCooldownMin || '两次手动至少隔几分钟'),
               h(Num, { value: val('manualCooldownMin'), min: 0, max: 240, onChange: (v) => set('manualCooldownMin', v) })),
-            h(Note, null, '手动没有每天次数限制，想点几次点几次，只受这里的冷却挡一下；每个源各收上面那么多条。')),
+            h(Note, null, '手动没有每天次数限制，想点几次点几次，只受冷却挡一下；三个源各收上面那么多条。')),
           h(Sec, { title: '看什么' },
             h(Row, null,
               h('span', { 'data-cf-label': '' }, labels.keywords || '关注关键词'),

@@ -37,15 +37,23 @@ test('占位符都换成了真路径，一个不剩', () => {
 })
 
 test('额度写进章程：每轮每个源最多收几条，手动轮同样按源压', () => {
-  const cfg = clampConfig({ autoPerSource: 6, manualPerSource: 2, aihotPerDay: 4 })
+  const cfg = clampConfig({ biliPerRound: 6, douyinPerRound: 4, aihotPerDay: 5 })
   // 自动轮：每个源各算各的（每轮口径）
   const auto = briefFromConfig(cfg, { caps: { bili: 6, douyin: 4, aihot: 5 } })
   assert.match(auto, /B站 6 条/)
   assert.match(auto, /抖音 4 条/)
   // 手动轮：同样按源压
-  const manual = briefFromConfig(cfg, { limit: 2 })
-  assert.match(manual, /每个源最多收 2 条/)
+  const manual = briefFromConfig(cfg, { caps: { bili: 2, douyin: 2, aihot: 2 } })
+  assert.match(manual, /B站 2 条/)
   assert.doesNotMatch(manual, /B站 6 条/)
+})
+
+test('AI 圈轮只说 AI 圈：不收视频，条数只报 AI 圈那一份', () => {
+  const cfg = clampConfig({ aihotPerDay: 3 })
+  const out = briefFromConfig(cfg, { caps: { bili: 0, douyin: 0, aihot: 3 }, only: 'aihot' })
+  assert.match(out, /只看 AI 圈/)
+  assert.match(out, /AI 圈 3 条/)
+  assert.doesNotMatch(out, /B站 \\d+ 条/)
 })
 
 test('关掉评论 ⇒ 章程里必须出现「不许发」而不再给授权', () => {
@@ -136,12 +144,12 @@ test('personaPrompt 原样带进去，但截到 4000 字', () => {
 })
 
 test('renderCharter 把配置段接在章程尾巴上，不插进正文中间', () => {
-  const out = renderCharter('# 正文\n\n规则若干。', layout, { why: 'manual', cfg: clampConfig({ manualPerSource: 4 }), limit: 4 })
+  const out = renderCharter('# 正文\n\n规则若干。', layout, { why: 'manual', cfg: clampConfig({ biliManual: 4 }), caps: { bili: 4, douyin: 4, aihot: 4 } })
   const bodyAt = out.indexOf('# 正文')
   const briefAt = out.indexOf('# 这一轮的实际情况')
   assert.ok(bodyAt >= 0 && briefAt > bodyAt, '配置段应该在正文之后')
   assert.match(out, /点了「现在就跑」/)
-  assert.match(out, /最多收 4 条/)
+  assert.match(out, /B站 4 条/)
 })
 
 // ── 章程正文里写死的纪律（改章程时容易一句话删掉，钉住）──────────────
