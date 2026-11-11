@@ -895,7 +895,7 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
                       set('aihotTimes', a)
                     },
                   }, '×')))
-                : h('span', { 'data-cf-times-empty': '' }, '没设时间 —— 打开 DSH 时补一次。')),
+                : h('span', { 'data-cf-times-empty': '' }, '一条都没设 —— 保存时会退回 12:00。')),
             h(Row, null,
               h('input', {
                 'data-cf-input': '', type: 'time', step: 300,
@@ -920,7 +920,7 @@ const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
                 h('option', { value: 'daily' }, '当天日报'),
                 h('option', { value: 'selected' }, '24h 精选'))),
             h(Note, null, `到点会单独起一轮，让模型读过每条正文再写简述，不占视频的轮数。今天：${status?.schedule?.aihotText || '—'}。`),
-            h(Note, null, '一天只取一次，抓到多少写多少，不设条数上限。第一次装上时会先看一眼当时的 AI 热点（带原文链接）。')),
+            h(Note, null, '加几个时间就一天跑几次，每个时间点各起一轮；抓到多少写多少，不设条数上限。')),
           h(Sec, { title: '手动跑（点一次收多少）' },
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.biliManual || 'B站收几条'),

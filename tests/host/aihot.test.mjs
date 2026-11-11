@@ -16,6 +16,12 @@ import { DEFAULTS } from '../../lib/config.mjs'
 import { createDragonflyService } from '../../lib/service.mjs'
 import { countPicks, mergeReport, parseEntryHeading, urlOf } from '../../lib/report.mjs'
 
+/** 北京时间的当前 HH:MM —— 让「现在」正好落在 AI 圈的时间点上 */
+const nowHhmm = () => {
+  const bj = new Date(Date.now() + 8 * 3600 * 1000)
+  return `${String(bj.getUTCHours()).padStart(2, '0')}:${String(bj.getUTCMinutes()).padStart(2, '0')}`
+}
+
 const DAILY = {
   schemaVersion: '2.0.0',
   report: {
@@ -214,7 +220,7 @@ test('aihotPromptNote：每条都带上正文，取不到时说清原因', () =>
   assert.match(aihotPromptNote(null), /没取到/)
 })
 
-test('AI 圈一天只取一次：第二次那一轮直接说已取过', async () => {
+test('AI 圈一个时间点只跑一次：同一点上第二次直接说已取过', async () => {
   const home = await mkdtemp(join(tmpdir(), 'dragonfly-aihot-'))
   const realFetch = globalThis.fetch
   try {
@@ -228,7 +234,12 @@ test('AI 圈一天只取一次：第二次那一轮直接说已取过', async ()
     }
     const svc = createDragonflyService(ctx, {
       pluginDir: process.cwd(),
-      config: { ...DEFAULTS, sources: { bili: false, douyin: false, aihot: true } },
+      // 把 AI 圈时间点设成「现在」，这一轮才落在点上
+      config: {
+        ...DEFAULTS,
+        aihotTimes: [nowHhmm()],
+        sources: { bili: false, douyin: false, aihot: true },
+      },
       log: () => {},
     })
     const first = await svc.run('auto')
@@ -237,7 +248,7 @@ test('AI 圈一天只取一次：第二次那一轮直接说已取过', async ()
     const second = await svc.run('auto')
     assert.equal(second.ok, false)
     assert.equal(second.code, 'quota')
-    assert.match(second.text, /今天 AI 圈已经取过了/)
+    assert.match(second.text, /这个时间点的 AI 圈已经取过了/)
     assert.equal(calls, 1, '第二次不该再打接口')
   } finally {
     globalThis.fetch = realFetch
