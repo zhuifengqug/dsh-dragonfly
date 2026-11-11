@@ -65,6 +65,15 @@ window.__ModuleLoader__.load({
   padding:5px 9px;font-size:13px;font-family:inherit;background:var(--dsw-alias-bg-elevated,#fff);
   color:inherit;min-width:0;}
 [data-cf-num]{width:76px;}
+[data-cf-times]{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px;}
+[data-cf-time]{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--dsw-alias-border-secondary,#d9dde2);
+  border-radius:999px;padding:3px 6px 3px 11px;font-size:12.5px;font-variant-numeric:tabular-nums;}
+[data-cf-time][data-peak]{border-color:#e3b23c;}
+[data-cf-time][data-peak] b::after{content:' 贵';color:#a8761a;font-weight:400;font-size:11px;}
+[data-cf-time] button{appearance:none;border:0;background:transparent;cursor:pointer;
+  color:var(--dsw-alias-label-tertiary,#8b9199);font-size:14px;line-height:1;padding:0 2px;}
+[data-cf-time] button:hover{color:#df5e4e;}
+[data-cf-times-empty]{font-size:12.5px;color:var(--dsw-alias-label-tertiary,#8b9199);}
 [data-cf-sw]{flex:none;width:38px;height:22px;border-radius:11px;border:0;cursor:pointer;position:relative;
   background:var(--dsw-alias-border-secondary,#d9dde2);transition:background .15s;}
 [data-cf-sw][data-on]{background:var(--dsw-alias-brand-primary,#4c7dff);}
@@ -268,8 +277,20 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
     const StyleTag = () => h('style', { 'data-cf-style': '' }, CSS)
 
     // ── 小部件 ────────────────────────────────────────────────────────────────
-    const Row = ({ children }) => h('div', { 'data-cf-row': '' }, children)
-    const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
+    /** 出厂自带的时间点，跟 lib/clock.mjs 的 DEFAULT_RUN_TIMES 保持一致（只用于界面提示文案） */
+const DEFAULT_TIMES = ['12:00', '18:00', '23:00']
+
+/** 这个时间点是不是工作日高峰（官方口径 9–12、14–18）；只用来在界面上标一个「贵」 */
+const peakish = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim())
+  if (!m) return false
+  const t = Number(m[1]) * 60 + Number(m[2])
+  return (t >= 9 * 60 && t < 12 * 60) || (t >= 14 * 60 && t < 18 * 60)
+}
+
+const Row = ({ children }) => h('div', { 'data-cf-row': '' }, children)
+
+const Sec = ({ title, children }) => h('section', { 'data-cf-sec': '' },
       title ? h('div', { 'data-cf-h': '' }, title) : null, children)
     const Note = ({ children }) => h('div', { 'data-cf-note': '' }, children)
 
@@ -599,6 +620,7 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
       const [busy, setBusy] = useState('')
       // 关键词框的本地草稿：输入时原样保留（否则每打一个逗号就被 split→join 吃掉），失焦再收回规范写法
       const [kwText, setKwText] = useState(null)
+    const [timeText, setTimeText] = useState('')
 
       useEffect(() => {
         jget('/config').then((r) => { setCfg(r.config || {}); setLabels(r.labels || {}) })
@@ -730,8 +752,8 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
       const groups = [
         { key: 'sources', label: '采什么', title: '采什么', desc: '从哪儿采。关掉的那个源，那一轮就不去。',
           keys: ['sources', 'aihotPerDay', 'aihotMode', 'dyDailyMinutes', 'favoritesEnabled'] },
-        { key: 'pick', label: '怎么挑', title: '怎么挑', desc: '自动跑几轮、每轮每个源收几条、手动怎么收、认哪些词、日报写多细。',
-          keys: ['autoRuns', 'autoPerSource', 'manualPerSource', 'manualCooldownMin', 'keywords', 'fetchPerRound', 'reportLevel'] },
+        { key: 'pick', label: '怎么挑', title: '怎么挑', desc: '几点自己跑、跑几轮、每轮每个源收几条、手动怎么收、认哪些词、日报写多细。',
+          keys: ['runTimes', 'peakValley', 'autoRuns', 'autoPerSource', 'manualPerSource', 'manualCooldownMin', 'keywords', 'fetchPerRound', 'reportLevel'] },
         { key: 'output', label: '写到哪', title: '写到哪', desc: '日报、单片笔记、值班轮的工作目录。',
           keys: ['outputDir', 'workspaceDir', 'notesEnabled'] },
         { key: 'interact', label: '互动', title: '互动', desc: '要不要在 B站 上说话 —— 评论和私信。',
@@ -814,6 +836,46 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
         ],
 
         pick: [
+          h(Sec, { title: '什么时候跑' },
+            h('div', { 'data-cf-times': '' },
+              (val('runTimes') || []).length
+                ? (val('runTimes') || []).map((t, i) => h('span', {
+                  'data-cf-time': '', 'data-peak': peakish(t) ? '' : undefined,
+                },
+                h('b', null, t),
+                h('button', {
+                  type: 'button',
+                  title: '去掉这个时间',
+                  onClick: () => {
+                    const a = [...(val('runTimes') || [])]
+                    a.splice(i, 1)
+                    set('runTimes', a)
+                  },
+                }, '×')))
+                : h('span', { 'data-cf-times-empty': '' }, '一个都没有 —— 那就不会自己跑了。')),
+            h(Row, null,
+              h('input', {
+                'data-cf-input': '', type: 'time', step: 300,
+                value: timeText,
+                onChange: (e) => setTimeText(e.target.value),
+              }),
+              h(Btn, {
+                onClick: () => {
+                  const t = String(timeText || '').trim()
+                  if (!/^\d{1,2}:\d{2}$/.test(t)) { setMsg('先挑一个时间，再点加。'); return }
+                  const a = [...(val('runTimes') || [])]
+                  if (a.includes(t)) { setMsg(`${t} 已经在里面了。`); return }
+                  a.push(t)
+                  a.sort()
+                  set('runTimes', a)
+                  setTimeText('')
+                  setMsg('')
+                },
+              }, '加一个时间')),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.peakValley || '只在谷时跑'),
+              h(Switch, { on: Boolean(val('peakValley')), onChange: (v) => set('peakValley', v) })),
+            h(Note, null, `到点后一小时内都算这一轮。默认三个（${(DEFAULT_TIMES).join(' / ')}）都在谷时，点 × 去掉，想加几点加几点，最多 8 个。${status?.schedule?.text ? `今天：${status.schedule.text}。` : ''}`)),
           h(Sec, { title: '自动跑' },
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoRuns || '每天最多跑几轮'),

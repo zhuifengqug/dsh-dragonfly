@@ -189,12 +189,14 @@ test('reportView 由 id 推出视频地址，不认日报里没写的链接', ()
 
 // ── 配置 ─────────────────────────────────────────────────────────────────────
 test('clampConfig 越界值夹住、认不出的退回默认、永不抛', () => {
-  const c = clampConfig({ autoPerSource: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', windows: ['瞎写'] })
+  const c = clampConfig({ autoPerSource: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', runTimes: ['瞎写', '25:99', '8:05']   })
   assert.equal(c.autoPerSource, 30)
   assert.equal(c.dyDailyMinutes, 0)
   assert.equal(c.searchSort, DEFAULTS.searchSort)
   assert.equal(c.dmMode, 'read')
-  assert.deepEqual(c.windows, DEFAULTS.windows)
+  assert.deepEqual(c.runTimes, ['08:05'], '认不出的丢掉，剩下的补零')
+  assert.deepEqual(clampConfig({ runTimes: ['9:00', '9:00', '18:00'] }).runTimes, ['09:00', '18:00'], '去重并按先后排')
+  assert.deepEqual(clampConfig({ runTimes: [] }).runTimes, DEFAULTS.runTimes, '一条都不剩就退回默认三个')
 })
 
 test('clampConfig 在 dmEnabled=false 时把 auto 降回 read（对外发言要单独开）', () => {
@@ -240,35 +242,39 @@ test('parseWindow / inWindow 支持跨零点', () => {
   assert.equal(inWindow(new Date(Date.UTC(2026, 10, 2, 4, 0)), w), false)
 })
 
-test('autoWindowState 两道与门：窗口 + 谷时', () => {
+test('autoWindowState：只在设的时间点那一小时内开跑', () => {
   const utcNoon = new Date(Date.UTC(2026, 10, 2, 4, 0))   // 北京 12:00，工作日
-  const cfg = { windows: ['00:00-24:00'], peakValley: true, noon: true, night: true }
-  assert.equal(autoWindowState(utcNoon, cfg).ok, true)
-
-  const outside = { ...cfg, windows: ['01:00-02:00'] }
-  assert.equal(autoWindowState(utcNoon, outside).ok, false)
-
-  const noPeak = { ...cfg, peakValley: false }
-  assert.equal(autoWindowState(utcNoon, noPeak).ok, true)
+  assert.equal(autoWindowState(utcNoon, { runTimes: ['12:00'] }).ok, true)
+  // 12:00 起一小时内都算这一轮（跳到 12:40 也不漏）
+  const at = new Date(Date.UTC(2026, 10, 2, 4, 40))
+  assert.equal(autoWindowState(at, { runTimes: ['12:00'] }).window, '12:00-13:00')
+  // 不在时间点上就不跑
+  assert.equal(autoWindowState(utcNoon, { runTimes: ['13:00'] }).ok, false)
+  // 谷时开关：10:00 是工作日高峰，挡住；关掉就放行
+  const utc10 = new Date(Date.UTC(2026, 10, 2, 2, 0))
+  assert.equal(autoWindowState(utc10, { runTimes: ['10:00'], peakValley: true }).ok, false)
+  assert.equal(autoWindowState(utc10, { runTimes: ['10:00'], peakValley: false }).ok, true)
 })
 
-test('dayWindows 把今天能跑的时段切出来，标出过了没有', () => {
-  // 北京 10:00（工作日）：00:00-09:00 已过，12:00-14:00 与 18:00-24:00 还没到
+test('dayWindows 把今天设的时间点列出来，标出过了没有', () => {
+  // 北京 10:00（工作日）：三个默认点都还没到
   const beijing10 = new Date(Date.UTC(2026, 10, 2, 2, 0))
-  const a = dayWindows(beijing10, { windows: ['00:00-24:00'], peakValley: true, noon: true, night: true })
-  assert.deepEqual(a.map((x) => `${x.spec}:${x.state}`), ['00:00-09:00:passed', '12:00-14:00:todo', '18:00-24:00:todo'])
-  // 不开谷时：整段全天，此刻段内
-  const b = dayWindows(beijing10, { windows: ['00:00-24:00'], peakValley: false })
-  assert.deepEqual(b.map((x) => `${x.spec}:${x.state}`), ['00:00-24:00:active'])
-  // 自己设的窗与谷时求交：只剩 12:00-14:00 那一截
-  const c = dayWindows(beijing10, { windows: ['11:00-13:00'], peakValley: true, noon: true, night: false })
-  assert.deepEqual(c.map((x) => x.spec), ['12:00-13:00'])
+  const a = dayWindows(beijing10, { runTimes: ['12:00', '18:00', '23:00'] })
+  assert.deepEqual(a.map((x) => `${x.spec}:${x.state}`), ['12:00-13:00:todo', '18:00-19:00:todo', '23:00-24:00:todo'])
+  // 北京 12:30：第一个点正在段内
+  const beijing1230 = new Date(Date.UTC(2026, 10, 2, 4, 30))
+  const b = dayWindows(beijing1230, { runTimes: ['12:00', '18:00'] })
+  assert.deepEqual(b.map((x) => x.state), ['active', 'todo'])
+  // 不带配置就用出厂三个
+  assert.deepEqual(dayWindows(beijing10, {}).map((x) => x.spec), ['12:00-13:00', '18:00-19:00', '23:00-24:00'])
 })
 
 test('nextWindowLabel 给一个人能看的下一时刻', () => {
-  const utcNoon = new Date(Date.UTC(2026, 10, 2, 4, 0))
-  const n = nextWindowLabel(utcNoon, { windows: ['00:00-24:00'], peakValley: true, noon: true, night: true })
-  assert.match(n.label, /^\d{2}:\d{2}$/)
+  const beijing10 = new Date(Date.UTC(2026, 10, 2, 2, 0))
+  assert.equal(nextWindowLabel(beijing10, { runTimes: ['12:00', '18:00'] }).label, '12:00')
+  // 在段内就是现在这个点
+  const beijing1220 = new Date(Date.UTC(2026, 10, 2, 4, 20))
+  assert.equal(nextWindowLabel(beijing1220, { runTimes: ['12:00'] }).label, '12:00')
 })
 
 test('dayKey 用本机日期', () => {

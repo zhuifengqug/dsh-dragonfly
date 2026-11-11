@@ -401,10 +401,13 @@ test('自动轮：失败不封窗，同一窗口最多试 2 次', async () => {
     const ctx = makeCtx(home)
     // 三个信源都关着 ⇒ run() 立刻以 no_source 失败。用它验「失败只计数、不封窗」，
     // 顺带保证这条用例不落盘、不起进程、不打外网。
+    // 时间点用「此刻这个小时」，否则 tick() 会因为不在时间点上直接早退，这条用例就白跑了。
+    const bjHour = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours()
+    const nowSlot = `${String(bjHour).padStart(2, '0')}:00`
     const service = createDragonflyService(ctx, {
       pluginDir: process.cwd(),
-      // peakValley 关掉：这条用例验的是「失败怎么记」，别让谷时窗口把它挡在门外（那会随点开跑而时灵时不灵）
-      config: { ...DEFAULTS, peakValley: false, sources: { bili: false, douyin: false, aihot: false } },
+      // peakValley 关掉：这条用例验的是「失败怎么记」，别让谷时开关把它挡在门外
+      config: { ...DEFAULTS, peakValley: false, runTimes: [nowSlot], sources: { bili: false, douyin: false, aihot: false } },
       log: () => {},
     })
     const layout = layoutOf(service.status().home)
