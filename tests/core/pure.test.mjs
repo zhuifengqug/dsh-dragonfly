@@ -189,8 +189,8 @@ test('reportView 由 id 推出视频地址，不认日报里没写的链接', ()
 
 // ── 配置 ─────────────────────────────────────────────────────────────────────
 test('clampConfig 越界值夹住、认不出的退回默认、永不抛', () => {
-  const c = clampConfig({ perDay: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', windows: ['瞎写'] })
-  assert.equal(c.perDay, 30)
+  const c = clampConfig({ biliPerDay: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', windows: ['瞎写'] })
+  assert.equal(c.biliPerDay, 30)
   assert.equal(c.dyDailyMinutes, 0)
   assert.equal(c.searchSort, DEFAULTS.searchSort)
   assert.equal(c.dmMode, 'read')
@@ -205,14 +205,14 @@ test('clampConfig 在 dmEnabled=false 时把 auto 降回 read（对外发言要�
 test('clampConfig 传垃圾也不炸', () => {
   for (const junk of [null, undefined, 'x', 42, [], { model: 'oops', sources: 7 }]) {
     const c = clampConfig(junk)
-    assert.equal(typeof c.perDay, 'number')
+    assert.equal(typeof c.biliPerDay, 'number')
   }
 })
 
 test('diffKeys 只报真变了的键', () => {
   const a = clampConfig({})
-  const b = clampConfig({ perDay: 9 })
-  assert.deepEqual(diffKeys(a, b), ['perDay'])
+  const b = clampConfig({ biliPerDay: 9 })
+  assert.deepEqual(diffKeys(a, b), ['biliPerDay'])
 })
 
 test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建）', () => {
@@ -225,7 +225,7 @@ test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建�
 })
 
 test('pickKnownKeys 丢掉不认识的键', () => {
-  assert.deepEqual(pickKnownKeys({ perDay: 3, 乱写: 1 }), { perDay: 3 })
+  assert.deepEqual(pickKnownKeys({ biliPerDay: 3, 乱写: 1 }), { biliPerDay: 3 })
 })
 
 // ── 时间窗 ───────────────────────────────────────────────────────────────────

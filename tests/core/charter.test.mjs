@@ -36,10 +36,16 @@ test('占位符都换成了真路径，一个不剩', () => {
   assert.doesNotMatch(out, /<家目录>|<报告目录>|<笔记目录>|<见闻录>/)
 })
 
-test('额度写进章程，且手动轮按 manualMax 压着', () => {
-  const cfg = clampConfig({ perDay: 6, manualMax: 2 })
-  assert.match(briefFromConfig(cfg, { limit: 2 }), /最多收几条：2 条/)
-  assert.match(briefFromConfig(cfg, { limit: 6 }), /最多收几条：6 条/)
+test('额度写进章程：自动轮给每个源剩下的条数，手动轮给一次最多收几条', () => {
+  const cfg = clampConfig({ biliPerDay: 6, douyinPerDay: 4, manualPerRound: 2 })
+  // 自动轮：每个源各算各的
+  const auto = briefFromConfig(cfg, { caps: { bili: 6, douyin: 4, aihot: 5 } })
+  assert.match(auto, /B站 6 条/)
+  assert.match(auto, /抖音 4 条/)
+  // 手动轮：只压这一次的总条数
+  const manual = briefFromConfig(cfg, { limit: 2 })
+  assert.match(manual, /这一轮最多收 2 条/)
+  assert.doesNotMatch(manual, /B站 6 条/)
 })
 
 test('关掉评论 ⇒ 章程里必须出现「不许发」而不再给授权', () => {
@@ -130,12 +136,12 @@ test('personaPrompt 原样带进去，但截到 4000 字', () => {
 })
 
 test('renderCharter 把配置段接在章程尾巴上，不插进正文中间', () => {
-  const out = renderCharter('# 正文\n\n规则若干。', layout, { why: 'manual', cfg: clampConfig({ perDay: 4 }) })
+  const out = renderCharter('# 正文\n\n规则若干。', layout, { why: 'manual', cfg: clampConfig({ manualPerRound: 4 }), limit: 4 })
   const bodyAt = out.indexOf('# 正文')
   const briefAt = out.indexOf('# 这一轮的实际情况')
   assert.ok(bodyAt >= 0 && briefAt > bodyAt, '配置段应该在正文之后')
   assert.match(out, /点了「现在就跑」/)
-  assert.match(out, /最多收几条：4 条/)
+  assert.match(out, /最多收 4 条/)
 })
 
 // ── 章程正文里写死的纪律（改章程时容易一句话删掉，钉住）──────────────

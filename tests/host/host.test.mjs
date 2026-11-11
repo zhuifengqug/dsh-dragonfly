@@ -167,7 +167,7 @@ test('dragonfly_status 在没有信源时报「跑不了」，不是报错', asy
     const statusTool = ctx.toolList.find((t) => t.name === 'dragonfly_status')
     const out = await statusTool.execute({}, {})
     assert.equal(out.ok, true)
-    assert.match(out.text, /额度/)
+    assert.match(out.text, /已收 \d+ 条/)
   } finally {
     await rm(home, { recursive: true, force: true })
   }
@@ -193,14 +193,14 @@ test('dragonfly_config 改值会落盘到 config.json（文件是真源）', asy
     const ctx = makeCtx(home)
     apply(ctx, DEFAULTS)
     const cfgTool = ctx.toolList.find((t) => t.name === 'dragonfly_config')
-    const out = await cfgTool.execute({ patch: { perDay: 2, dmMode: 'draft' } }, {})
+    const out = await cfgTool.execute({ patch: { biliPerDay: 2, dmMode: 'draft' } }, {})
     assert.equal(out.ok, true)
-    assert.ok(out.changed.includes('perDay'))
+    assert.ok(out.changed.includes('biliPerDay'))
 
     const file = join(home, 'dragonfly', 'config.json')
     assert.ok(existsSync(file), 'config.json 应该被写出来')
     const saved = JSON.parse(await readFile(file, 'utf8'))
-    assert.equal(saved.perDay, 2)
+    assert.equal(saved.biliPerDay, 2)
     assert.equal(saved.dmMode, 'draft')
   } finally {
     await rm(home, { recursive: true, force: true })
@@ -271,13 +271,16 @@ test('初次起来就把家目录、见闻录、章程铺好', async () => {
   }
 })
 
-test('status 的展示行包含收了几条 / 额度 / 下次', async () => {
+test('status 的展示行包含收了几条 / 每个源的额度 / 自动轮数', async () => {
   const home = await mkdtemp(join(tmpdir(), 'dragonfly-status-'))
   try {
     const { service } = makeService(home)
     const s = service.status()
     assert.match(s.line, /今日已收 \d+ 条/)
-    assert.match(s.line, /额度 \d+/)
+    assert.match(s.line, /B站 \d+\/\d+/)
+    assert.match(s.line, /自动 \d+\/\d+ 轮/)
+    assert.equal(s.quota.caps.bili, DEFAULTS.biliPerDay)
+    assert.equal(s.quota.autoRunsMax, DEFAULTS.autoRuns)
     assert.equal(s.running, false)
     assert.deepEqual(s.sources, ['B站', '抖音', 'AI 圈'])
   } finally {
@@ -400,7 +403,8 @@ test('自动轮：失败不封窗，同一窗口最多试 2 次', async () => {
     // 顺带保证这条用例不落盘、不起进程、不打外网。
     const service = createDragonflyService(ctx, {
       pluginDir: process.cwd(),
-      config: { ...DEFAULTS, sources: { bili: false, douyin: false, aihot: false } },
+      // peakValley 关掉：这条用例验的是「失败怎么记」，别让谷时窗口把它挡在门外（那会随点开跑而时灵时不灵）
+      config: { ...DEFAULTS, peakValley: false, sources: { bili: false, douyin: false, aihot: false } },
       log: () => {},
     })
     const layout = layoutOf(service.status().home)
