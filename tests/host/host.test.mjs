@@ -98,7 +98,7 @@ test('apply 把三条口子都接上了：工具、命令、路由', async () =>
     apply(ctx, DEFAULTS)
 
     const names = ctx.toolList.map((t) => t.name).sort()
-    assert.deepEqual(names, ['dragonfly_config', 'dragonfly_run', 'dragonfly_status'])
+    assert.deepEqual(names, ['dragonfly_aihot', 'dragonfly_config', 'dragonfly_run', 'dragonfly_status'])
 
     assert.equal(ctx.commandList.length, 1)
     assert.equal(ctx.commandList[0].name, 'dragonfly')

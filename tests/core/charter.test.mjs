@@ -37,23 +37,23 @@ test('占位符都换成了真路径，一个不剩', () => {
 })
 
 test('额度写进章程：每轮每个源最多收几条，手动轮同样按源压', () => {
-  const cfg = clampConfig({ biliPerRound: 6, douyinPerRound: 4, aihotPerDay: 5 })
+  const cfg = clampConfig({ biliPerRound: 6, douyinPerRound: 4 })
   // 自动轮：每个源各算各的（每轮口径）
-  const auto = briefFromConfig(cfg, { caps: { bili: 6, douyin: 4, aihot: 5 } })
+  const auto = briefFromConfig(cfg, { caps: { bili: 6, douyin: 4, aihot: 30 } })
   assert.match(auto, /B站 6 条/)
   assert.match(auto, /抖音 4 条/)
   // 手动轮：同样按源压
-  const manual = briefFromConfig(cfg, { caps: { bili: 2, douyin: 2, aihot: 2 } })
+  const manual = briefFromConfig(cfg, { caps: { bili: 2, douyin: 2, aihot: 30 } })
   assert.match(manual, /B站 2 条/)
   assert.doesNotMatch(manual, /B站 6 条/)
 })
 
-test('AI 圈轮只说 AI 圈：不收视频，条数只报 AI 圈那一份', () => {
-  const cfg = clampConfig({ aihotPerDay: 3 })
-  const out = briefFromConfig(cfg, { caps: { bili: 0, douyin: 0, aihot: 3 }, only: 'aihot' })
+test('AI 圈轮只说 AI 圈：不收视频，也不设条数上限', () => {
+  const cfg = clampConfig({})
+  const out = briefFromConfig(cfg, { caps: { bili: 0, douyin: 0, aihot: 0 }, only: 'aihot' })
   assert.match(out, /只看 AI 圈/)
-  assert.match(out, /AI 圈 3 条/)
-  assert.doesNotMatch(out, /B站 \\d+ 条/)
+  assert.match(out, /全取，不设条数上限/)
+  assert.doesNotMatch(out, /B站 \d+ 条/)
 })
 
 test('关掉评论 ⇒ 章程里必须出现「不许发」而不再给授权', () => {

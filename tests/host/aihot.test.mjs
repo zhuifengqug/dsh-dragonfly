@@ -213,3 +213,66 @@ test('aihotPromptNote：每条都带上正文，取不到时说清原因', () =>
   assert.match(aihotPromptNote({ ok: false, reason: 'HTTP 503' }), /没取到：HTTP 503/)
   assert.match(aihotPromptNote(null), /没取到/)
 })
+
+test('AI 圈一天只取一次：第二次那一轮直接说已取过', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-aihot-'))
+  const realFetch = globalThis.fetch
+  try {
+    let calls = 0
+    globalThis.fetch = async () => { calls += 1; return { ok: true, status: 200, json: async () => DAILY } }
+    const ctx = {
+      get: (k) => (k === 'dshHomePath' ? (...p) => join(home, ...p) : undefined),
+      settings: { get: () => undefined, set: () => {} },
+      effect: () => {},
+      logger: { info() {}, warn() {}, error() {} },
+    }
+    const svc = createDragonflyService(ctx, {
+      pluginDir: process.cwd(),
+      config: { ...DEFAULTS, sources: { bili: false, douyin: false, aihot: true } },
+      log: () => {},
+    })
+    const first = await svc.run('auto')
+    assert.equal(first.ok, true)
+    assert.equal(svc.status().quota.aihotTaken, true, '取过之后要打上今天的标记')
+    const second = await svc.run('auto')
+    assert.equal(second.ok, false)
+    assert.equal(second.code, 'quota')
+    assert.match(second.text, /今天 AI 圈已经取过了/)
+    assert.equal(calls, 1, '第二次不该再打接口')
+  } finally {
+    globalThis.fetch = realFetch
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('dragonfly_aihot 背后的 aihotNow：当天取过就直接用缓存', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-aihot-'))
+  const realFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => DAILY })
+    const ctx = {
+      get: (k) => (k === 'dshHomePath' ? (...p) => join(home, ...p) : undefined),
+      settings: { get: () => undefined, set: () => {} },
+      effect: () => {},
+      logger: { info() {}, warn() {}, error() {} },
+    }
+    const svc = createDragonflyService(ctx, {
+      pluginDir: process.cwd(),
+      config: { ...DEFAULTS, sources: { bili: false, douyin: false, aihot: true } },
+      log: () => {},
+    })
+    const a = await svc.aihotNow()
+    assert.equal(a.ok, true)
+    assert.ok(a.items.length > 0)
+    assert.equal(a.cached, false)
+    const b = await svc.aihotNow()
+    assert.equal(b.cached, true, '第二次读缓存')
+    globalThis.fetch = async () => { throw new Error('不该再打接口') }
+    const c = await svc.aihotNow()
+    assert.equal(c.ok, true)
+    assert.equal(c.cached, true)
+  } finally {
+    globalThis.fetch = realFetch
+    await rm(home, { recursive: true, force: true })
+  }
+})

@@ -59,7 +59,6 @@ export const Config = !z ? undefined : z.object({
   autoRuns: describe(z.number()),
   biliPerRound: describe(z.number()),
   douyinPerRound: describe(z.number()),
-  aihotPerDay: describe(z.number()),
   aihotTimes: describe(z.array(z.string())),
   aihotMode: describe(z.string()),
   dyDailyMinutes: describe(z.number()),
@@ -177,6 +176,26 @@ export function apply(ctx, config = {}) {
       return { ok: res.ok, text: res.text || (res.ok ? '跑完了。' : '没跑成。'), result: res }
     },
   }), 'dragonfly: tool run')
+
+  ctx.effect(() => tool({
+    name: 'dragonfly_aihot',
+    description: '看今天的 AI 圈（AIHOT）：每条新闻讲了什么、来源、AIHOT 链接与原文链接。想现拉最新的就传 refresh。',
+    parameters: {
+      refresh: { type: 'boolean', description: 'true = 重新拉一次，别用今天的缓存' },
+    },
+    execute: async (args) => {
+      const r = await service.aihotNow({ refresh: Boolean(args?.refresh) })
+      if (!r.ok) return { ok: false, text: `AI 圈这会儿没取到：${r.reason || '未知原因'}` }
+      const head = r.lead ? [`今日头条：${r.lead.title}`, r.lead.text, ''] : []
+      const body = r.items.map((it, i) => [
+        `${i + 1}. ${it.title}`,
+        `   来源：${it.source || '未知'}${it.summary ? `｜${it.summary}` : ''}`,
+        `   ${it.aihotUrl ? `AIHOT：${it.aihotUrl}` : ''}${it.originalUrl ? `  原文：${it.originalUrl}` : ''}`,
+      ].join('\n'))
+      const text = [...head, ...body].join('\n') || '今天 AI 圈还没有条目。'
+      return { ok: true, text: `${r.day} · ${r.items.length} 条${r.cached ? '（今天的缓存）' : ''}\n\n${text}`, items: r.items, day: r.day }
+    },
+  }), 'dragonfly: tool aihot')
 
   ctx.effect(() => tool({
     name: 'dragonfly_config',
