@@ -634,14 +634,20 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
 
       const save = async () => {
         if (!Object.keys(dirty).length) return setMsg('没什么要改的。')
+        setMsg(''); setErr('')
         try {
           const r = await jpost('/config', { patch: dirty })
-          if (!r.ok) { setErr(r.text || '没存上'); return }
+          if (!r.ok) { setMsg(`没存上：${r.text || '后端没接这一项'}`); return }
           setCfg(r.config || cfg)
           setDirty({})
           setMsg('存好了。')
           onSaved?.(r.config)
-        } catch (e) { setErr(String(e.message || e)) }
+        } catch (e) {
+          const msg = String(e.message || e)
+          setMsg(msg.includes('400')
+            ? '没存上：这一版页面比装着的插件新，后端还不认这几个字段 —— 重启一次 DSH 就好。'
+            : `没存上：${msg}`)
+        }
       }
 
       // ── 运行环境里的几个动作 ────────────────────────────────────────────
@@ -722,10 +728,10 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
       // 这份清单本身就是「使用者能发现什么」：想知道蜻蛉能干什么，看左边那六个词。
       // 以后要加功能，就在这儿加一条 + 下面加一个面板，版式不用动。
       const groups = [
-        { key: 'sources', label: '采什么', title: '采什么', desc: '从哪儿采，每个源每天各收几条。关掉的那个源，那一轮就不去。',
-          keys: ['sources', 'biliPerDay', 'douyinPerDay', 'aihotPerDay', 'aihotMode', 'dyDailyMinutes', 'favoritesEnabled'] },
-        { key: 'pick', label: '怎么挑', title: '怎么挑', desc: '自动跑几轮、手动跑一次收几条、认哪些词、日报写多细。',
-          keys: ['autoRuns', 'manualPerRound', 'manualCooldownMin', 'keywords', 'fetchPerRound', 'reportLevel'] },
+        { key: 'sources', label: '采什么', title: '采什么', desc: '从哪儿采。关掉的那个源，那一轮就不去。',
+          keys: ['sources', 'aihotPerDay', 'aihotMode', 'dyDailyMinutes', 'favoritesEnabled'] },
+        { key: 'pick', label: '怎么挑', title: '怎么挑', desc: '自动跑几轮、每轮每个源收几条、手动怎么收、认哪些词、日报写多细。',
+          keys: ['autoRuns', 'autoPerSource', 'manualPerSource', 'manualCooldownMin', 'keywords', 'fetchPerRound', 'reportLevel'] },
         { key: 'output', label: '写到哪', title: '写到哪', desc: '日报、单片笔记、值班轮的工作目录。',
           keys: ['outputDir', 'workspaceDir', 'notesEnabled'] },
         { key: 'interact', label: '互动', title: '互动', desc: '要不要在 B站 上说话 —— 评论和私信。',
@@ -751,10 +757,6 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
             h('div', { 'data-cf-note': '' },
               logined ? `已登录 · UID ${runtime.biliUid || '?'}` : '还没登录（扫一次码就行）'),
             h('div', { 'data-cf-row': '' },
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '每天最多收'),
-              h(Num, { value: val('biliPerDay'), min: 0, max: 30, onChange: (v) => set('biliPerDay', v) }),
-              h('span', { 'data-cf-note': '' }, '条')),
-            h('div', { 'data-cf-row': '' },
               h(Btn, { onClick: startLogin, disabled: busy === 'login' }, logined ? '重新扫码' : '扫码登录')),
             h('div', { 'data-cf-row': '' },
               h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '收藏夹的更新也算'),
@@ -769,10 +771,6 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
           h('div', { 'data-cf-card-k': '' },
             h('div', { 'data-cf-note': '' },
               runtime.dyProfile ? '登录态还留着' : '还没起过（第一次跑会开个专用窗口）'),
-            h('div', { 'data-cf-row': '' },
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '每天最多收'),
-              h(Num, { value: val('douyinPerDay'), min: 0, max: 30, onChange: (v) => set('douyinPerDay', v) }),
-              h('span', { 'data-cf-note': '' }, '条')),
             h('div', { 'data-cf-row': '' },
               h('span', { 'data-cf-label': '', 'data-cf-grow': '', style: { fontSize: '12px' } }, '每天最多看'),
               h(Num, { value: val('dyDailyMinutes'), min: 0, max: 120, onChange: (v) => set('dyDailyMinutes', v) }),
@@ -818,21 +816,24 @@ details[data-cf-sec][open] > [data-cf-sec-h]::before{transform:rotate(90deg);}
         pick: [
           h(Sec, { title: '自动跑' },
             h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoRuns || '自动每天最多跑几轮'),
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoRuns || '每天最多跑几轮'),
               h(Num, { value: val('autoRuns'), min: 0, max: 24, onChange: (v) => set('autoRuns', v) })),
-            h(Note, null, '一天最多起几轮自动值班。每一轮收多少，看「采什么」里每个源自己的上限 —— 哪天都收满了就不跑了。'),
+            h(Row, null,
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.autoPerSource || '每个源每轮最多收几条'),
+              h(Num, { value: val('autoPerSource'), min: 0, max: 30, onChange: (v) => set('autoPerSource', v) })),
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.fetchPerRound || '每轮最多细看几条'),
               h(Num, { value: val('fetchPerRound'), min: 1, max: 30, onChange: (v) => set('fetchPerRound', v) })),
-            h(Note, null, '细看 = 拉字幕/抽帧那种。这个只限制看的量，不影响收几条。')),
+            h(Note, null, '细看 = 拉字幕/抽帧那种。这个只限制看的量，不影响收几条。'),
+            h(Note, null, `今天会自己跑的时间：${status?.schedule?.text || '—'}。今天还能跑 ${status?.schedule?.runsLeft ?? '—'} 轮。`)),
           h(Sec, { title: '手动跑' },
             h(Row, null,
-              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.manualPerRound || '点一次最多收几条'),
-              h(Num, { value: val('manualPerRound'), min: 0, max: 30, onChange: (v) => set('manualPerRound', v) })),
+              h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.manualPerSource || '每个源最多收几条'),
+              h(Num, { value: val('manualPerSource'), min: 0, max: 30, onChange: (v) => set('manualPerSource', v) })),
             h(Row, null,
               h('span', { 'data-cf-label': '', 'data-cf-grow': '' }, labels.manualCooldownMin || '两次手动至少隔几分钟'),
               h(Num, { value: val('manualCooldownMin'), min: 0, max: 240, onChange: (v) => set('manualCooldownMin', v) })),
-            h(Note, null, '手动没有每天次数限制，想点几次点几次，只受这里的冷却挡一下。')),
+            h(Note, null, '手动没有每天次数限制，想点几次点几次，只受这里的冷却挡一下；每个源各收上面那么多条。')),
           h(Sec, { title: '看什么' },
             h(Row, null,
               h('span', { 'data-cf-label': '' }, labels.keywords || '关注关键词'),

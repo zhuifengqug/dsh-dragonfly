@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { clampConfig, DEFAULTS, diffKeys, pickKnownKeys } from '../../lib/config.mjs'
 import { appendRow, emptySeen, formatRow, parseSeen, seenDay, seenToday, sectionOfId, splitOld } from '../../lib/seen.mjs'
 import { countPicks, emptyReport, mergeReport, reportView, tierOf } from '../../lib/report.mjs'
-import { autoWindowState, dayKey, inWindow, nextWindowLabel, parseWindow } from '../../lib/clock.mjs'
+import { autoWindowState, dayKey, dayWindows, inWindow, nextWindowLabel, parseWindow } from '../../lib/clock.mjs'
 
 // ── 判重表 ───────────────────────────────────────────────────────────────────
 test('seenDay 认各种日期写法；没写年份按今年补', () => {
@@ -189,8 +189,8 @@ test('reportView 由 id 推出视频地址，不认日报里没写的链接', ()
 
 // ── 配置 ─────────────────────────────────────────────────────────────────────
 test('clampConfig 越界值夹住、认不出的退回默认、永不抛', () => {
-  const c = clampConfig({ biliPerDay: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', windows: ['瞎写'] })
-  assert.equal(c.biliPerDay, 30)
+  const c = clampConfig({ autoPerSource: 999, dyDailyMinutes: -3, searchSort: '乱写', dmMode: '乱写', windows: ['瞎写'] })
+  assert.equal(c.autoPerSource, 30)
   assert.equal(c.dyDailyMinutes, 0)
   assert.equal(c.searchSort, DEFAULTS.searchSort)
   assert.equal(c.dmMode, 'read')
@@ -205,14 +205,14 @@ test('clampConfig 在 dmEnabled=false 时把 auto 降回 read（对外发言要�
 test('clampConfig 传垃圾也不炸', () => {
   for (const junk of [null, undefined, 'x', 42, [], { model: 'oops', sources: 7 }]) {
     const c = clampConfig(junk)
-    assert.equal(typeof c.biliPerDay, 'number')
+    assert.equal(typeof c.autoPerSource, 'number')
   }
 })
 
 test('diffKeys 只报真变了的键', () => {
   const a = clampConfig({})
-  const b = clampConfig({ biliPerDay: 9 })
-  assert.deepEqual(diffKeys(a, b), ['biliPerDay'])
+  const b = clampConfig({ autoPerSource: 9 })
+  assert.deepEqual(diffKeys(a, b), ['autoPerSource'])
 })
 
 test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建）', () => {
@@ -225,7 +225,7 @@ test('workspaceDir 只认字符串、不校验存在性（目录由起轮前建�
 })
 
 test('pickKnownKeys 丢掉不认识的键', () => {
-  assert.deepEqual(pickKnownKeys({ biliPerDay: 3, 乱写: 1 }), { biliPerDay: 3 })
+  assert.deepEqual(pickKnownKeys({ autoPerSource: 3, 乱写: 1 }), { autoPerSource: 3 })
 })
 
 // ── 时间窗 ───────────────────────────────────────────────────────────────────
@@ -250,6 +250,19 @@ test('autoWindowState 两道与门：窗口 + 谷时', () => {
 
   const noPeak = { ...cfg, peakValley: false }
   assert.equal(autoWindowState(utcNoon, noPeak).ok, true)
+})
+
+test('dayWindows 把今天能跑的时段切出来，标出过了没有', () => {
+  // 北京 10:00（工作日）：00:00-09:00 已过，12:00-14:00 与 18:00-24:00 还没到
+  const beijing10 = new Date(Date.UTC(2026, 10, 2, 2, 0))
+  const a = dayWindows(beijing10, { windows: ['00:00-24:00'], peakValley: true, noon: true, night: true })
+  assert.deepEqual(a.map((x) => `${x.spec}:${x.state}`), ['00:00-09:00:passed', '12:00-14:00:todo', '18:00-24:00:todo'])
+  // 不开谷时：整段全天，此刻段内
+  const b = dayWindows(beijing10, { windows: ['00:00-24:00'], peakValley: false })
+  assert.deepEqual(b.map((x) => `${x.spec}:${x.state}`), ['00:00-24:00:active'])
+  // 自己设的窗与谷时求交：只剩 12:00-14:00 那一截
+  const c = dayWindows(beijing10, { windows: ['11:00-13:00'], peakValley: true, noon: true, night: false })
+  assert.deepEqual(c.map((x) => x.spec), ['12:00-13:00'])
 })
 
 test('nextWindowLabel 给一个人能看的下一时刻', () => {
