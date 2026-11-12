@@ -6,6 +6,8 @@
 
 装好之后，侧栏多一个「蜻蛉」入口，会话顶部多一块「今天」；设置页左侧六个词（采什么 / 怎么挑 / 写到哪 / 互动 / 运行环境 / 显示）就是它的全部开关。
 
+![今天页：左边四个栏目（总览 / B站 / 抖音 / AI 圈），右边是当天的日报——每条带封面、为什么值得看、我的一句话，以及 B站 / AIHOT 的原始链接](https://raw.githubusercontent.com/zhuifengqug/dsh-dragonfly/master/docs/screenshot-today.png)
+
 ## 能做什么
 
 **按时采风**
@@ -62,7 +64,7 @@ dsh plugin --profile desktop add link:D:/dsh-workspaces/dev/虫珀/蜻蛉
 dsh plugin --profile desktop add @zhuifengqug/dsh-dragonfly
 ```
 
-已发布到 npm，当前版本 `0.1.4`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.4`；升级时把版本号换成新的，再执行一次同样的命令。
+已发布到 npm，当前版本 `0.1.5`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.5`；升级时把版本号换成新的，再执行一次同样的命令。
 
 ### 第一次用
 
