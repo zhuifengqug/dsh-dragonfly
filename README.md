@@ -48,7 +48,7 @@
 
 ## 安装
 
-要求：DSH 0.2.2-rc.1 及以上、Node ≥ 22.19、Python 3.11+（B站采集用）。
+要求：DSH 0.2.2-rc.1 及以上（已在 0.2.2-rc.3 上验过）、Node ≥ 24.9、Python 3.11+（B站采集用）。
 
 ### 本地目录（自己用推荐）
 
@@ -64,7 +64,11 @@ dsh plugin --profile desktop add link:D:/dsh-workspaces/dev/虫珀/蜻蛉
 dsh plugin --profile desktop add @zhuifengqug/dsh-dragonfly
 ```
 
-已发布到 npm，当前版本 `0.1.5`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.5`；升级时把版本号换成新的，再执行一次同样的命令。
+已发布到 npm，当前版本 `0.1.6`：[npmjs.com/package/@zhuifengqug/dsh-dragonfly](https://www.npmjs.com/package/@zhuifengqug/dsh-dragonfly)。要锁版本就写全 `@zhuifengqug/dsh-dragonfly@0.1.6`；升级时把版本号换成新的，再执行一次同样的命令。
+
+### 模型用哪一个
+
+设置页「运行环境 → 模型」里能选到你在桌面端加过的**所有** provider —— 值班轮每跑一次都会把桌面 profile 里的模型清单原样带过去，你在桌面加一个新 provider，这边不用再抄一遍。留空就跟宿主当前默认走；填了却在本机没有的，诊断里会直说「这一轮的模型提供方没注册驱动」。手动选好的组合写死在配置里，不会被宿主的默认值改掉。
 
 ### 第一次用
 

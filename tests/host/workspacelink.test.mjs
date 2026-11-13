@@ -139,7 +139,7 @@ test('attachToWorkspace：已在工作区里就不再调 attachSession', async (
 test('attachToWorkspace：真的调 attachSession，抛错时把原因带回来', async () => {
   const ws = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => {} }
   const ctx = { get: () => ({ resolveByPath: async () => ws }) }
-  assert.deepEqual(await attachToWorkspace(ctx, 'D:\\x', 'session-2'), { ok: true })
+  assert.equal((await attachToWorkspace(ctx, 'D:\\x', 'session-2')).ok, true)
   assert.deepEqual(ws.sessionIds, []) // 假实现不改数组，这里只断言调用成功
 
   const boom = { sessionIds: [], record: {}, attachSession: async () => { throw new Error('cwd differs') } }
@@ -148,6 +148,40 @@ test('attachToWorkspace：真的调 attachSession，抛错时把原因带回来'
   assert.equal(r.ok, false)
   assert.match(r.reason, /cwd differs/)
 })
+
+test('attachToWorkspace：同一条会话一轮里晃多次也只 attach 一次、只记一行', async () => {
+  let calls = 0
+  const ws = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => { calls += 1 } }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  const lines = []
+  const log = (l) => lines.push(l)
+  assert.equal((await attachToWorkspace(ctx, 'D:\\x', 'session-dup', log)).ok, true)
+  assert.deepEqual(await attachToWorkspace(ctx, 'D:\\x', 'session-dup', log), { ok: true, reason: 'cached' })
+  assert.equal(calls, 1, '第二次不该再调 attachSession')
+  assert.equal(lines.length, 1, '不该刷第二行日志')
+})
+
+test('attachToWorkspace：domain 被关掉时重取注册表再挂一次', async () => {
+  let attempt = 0
+  let fresh = 0
+  const old = {
+    sessionIds: [], record: {},
+    attachSession: async () => { throw new Error("domain 'workspace' is closed") },
+  }
+  const newer = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => { attempt += 1 } }
+  const ctx = {
+    get: () => {
+      fresh += 1
+      return { resolveByPath: async () => (fresh === 1 ? old : newer) }
+    },
+  }
+  const lines = []
+  const r = await attachToWorkspace(ctx, 'D:\\x', 'session-closed', (l) => lines.push(l))
+  assert.equal(r.ok, true)
+  assert.equal(attempt, 1)
+  assert.match(lines.join('\n'), /重取注册表后/)
+})
+
 
 test('sessionDir：把 cwd 编码成那一层目录名', () => {
   assert.equal(
@@ -196,7 +230,7 @@ test('pickRegistry：注入过的子 fiber 直接挂在 ctx 上也能取到', as
   const ws = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => {} }
   const childCtx = { workspaceRegistry: { resolveByPath: async () => ws }, get: () => undefined }
   assert.equal(pickRegistry(childCtx), childCtx.workspaceRegistry)
-  assert.deepEqual(await attachToWorkspace(childCtx, 'D:\\x', 'session-9'), { ok: true })
+  assert.equal((await attachToWorkspace(childCtx, 'D:\\x', 'session-9')).ok, true)
   assert.equal(pickRegistry({ get: () => undefined }), null)
   assert.equal(pickRegistry(null), null)
 })

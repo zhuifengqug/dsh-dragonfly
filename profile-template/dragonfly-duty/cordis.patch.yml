@@ -35,8 +35,6 @@
   disabled: true
 - id: jobs
   disabled: true
-- id: tool-ralph
-  disabled: true
 
 # ── 文件系统：读 / 写 / 搜 —— 一个都不留 ────────────────────────────────────
 - id: tool-fs
@@ -49,7 +47,19 @@
   disabled: true
 - id: web-fetch-http
   disabled: true
+- id: web
+  disabled: true
+- id: web-deepseek-api
+  disabled: true
 - id: web-search-deepseek
+  disabled: true
+
+# ── 0.2.2-rc.2 起新增：AgentTeam / 工作目录，都能绕开工具限制 ────────────────
+- id: agent-team
+  disabled: true
+- id: tool-agent-team
+  disabled: true
+- id: tool-working-directory
   disabled: true
 
 # ── 子代理 / 工作流：都能绕开工具限制 ───────────────────────────────────────
@@ -58,8 +68,6 @@
 - id: tool-subagent-fork
   disabled: true
 - id: tool-subagent-control
-  disabled: true
-- id: tool-subagent-list-agents
   disabled: true
 - id: subagent
   disabled: true
@@ -78,8 +86,6 @@
 - id: skill
   disabled: true
 - id: skill-filesystem
-  disabled: true
-- id: skill-badge
   disabled: true
 - id: tool-skill
   disabled: true

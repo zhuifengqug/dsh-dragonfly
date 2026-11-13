@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { dshEntryCandidates, promptThroughShellUnsafe, resolveDsh, spawnDuty } from '../../lib/duty.mjs'
+import { dshEntryCandidates, extractPatchBlock, hostProvidersBlock, promptThroughShellUnsafe, resolveDsh, spawnDuty } from '../../lib/duty.mjs'
 
 const onWindows = process.platform === 'win32'
 
@@ -73,4 +73,29 @@ test('spawnDuty：入口只剩 shell 且章程多行时，立刻返回 no_safe_d
   assert.equal(r.ok, false)
   assert.equal(r.code, 'no_safe_dsh')
   assert.match(r.text, /cmd\.exe|shell/)
+})
+
+test('extractPatchBlock：整块切出某个 id，遇到下一个顶层条目就停', () => {
+  const text = ['- id: a', '  disabled: true', '- id: llm-pi-ai', '  name: x', '  config:', '    providers:', '      p1:', '        api: openai', '', '- id: b', '  disabled: true'].join('\n')
+  assert.deepEqual(extractPatchBlock(text, 'llm-pi-ai'), ['- id: llm-pi-ai', '  name: x', '  config:', '    providers:', '      p1:', '        api: openai'])
+  assert.equal(extractPatchBlock(text, 'nope'), null)
+})
+
+test('hostProvidersBlock：取桌面 profile 里 llm-pi-ai 的 providers，跳过值班轮自己那份', () => {
+  const home = mkdtempSync(join(tmpdir(), 'df-home-'))
+  try {
+    const mk = (name, body) => {
+      mkdirSync(join(home, 'profiles', name), { recursive: true })
+      writeFileSync(join(home, 'profiles', name, 'cordis.patch.yml'), body, 'utf8')
+    }
+    mk('dragonfly-duty', '- id: llm-pi-ai\n  config:\n    providers:\n      nope:\n')
+    mk('alpha', '- id: other\n  disabled: true\n')
+    mk('desktop', ['- id: llm-pi-ai', "  name: '@deepseek-ai/dsh-llm-pi-ai'", '  config:', '    providers:', '      a6:', '        api: openai-completions'].join('\n'))
+    const got = hostProvidersBlock(home)
+    assert.equal(got.profile, 'desktop')
+    assert.match(got.lines.join('\n'), /a6:/)
+    assert.ok(!/nope:/.test(got.lines.join('\n')), '不能把值班轮自己那份当成来源')
+    // 没有 providers 的 home 直接返回 null
+    assert.equal(hostProvidersBlock(join(home, 'nobody')), null)
+  } finally { rmSync(home, { recursive: true, force: true }) }
 })
