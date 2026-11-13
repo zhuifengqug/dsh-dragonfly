@@ -99,3 +99,20 @@ test('hostProvidersBlock：取桌面 profile 里 llm-pi-ai 的 providers，跳�
     assert.equal(hostProvidersBlock(join(home, 'nobody')), null)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
+test('hostProvidersBlock：多份 profile 里挑 provider 最多的那份（别捡到只剩一个的旧拷贝）', () => {
+  const home = mkdtempSync(join(tmpdir(), 'df-home2-'))
+  try {
+    const mk = (name, providers) => {
+      mkdirSync(join(home, 'profiles', name), { recursive: true })
+      const lines = ['- id: llm-pi-ai', '  config:', '    providers:']
+      for (const p of providers) lines.push(`      ${p}:`, '        api: openai-completions')
+      writeFileSync(join(home, 'profiles', name, 'cordis.patch.yml'), lines.join('\n'), 'utf8')
+    }
+    mk('caifeng-duty', ['magpie'])
+    mk('desktop', ['bye', 'mimo', 'bgpt', 'a6', 'gjjw', 'magpie'])
+    const got = hostProvidersBlock(home)
+    assert.equal(got.profile, 'desktop')
+    assert.equal(got.count, 6)
+    assert.match(got.lines.join('\n'), /a6:/)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
