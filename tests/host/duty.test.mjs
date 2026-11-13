@@ -33,14 +33,22 @@ test('dshEntryCandidates：命中 resources/app 下的 desktop-host cli.js', { s
 
 test('resolveDsh：桌面宿主优先拿自带 CLI，不落到 shell 兜底', { skip: !onWindows }, () => {
   const d = resolveDsh()
-  // 本机就是桌面版：要么命中宿主自带 CLI（shell:false），要么在测试机上是 plain node → 返回别的
+  // 本机跑测试的是 plain node（exe 旁没有 resources/），三条路都可能：
+  //   宿主自带 CLI（生产环境）／npm 装的那份／PATH 上的 dsh.cmd
+  // 0.2.2-rc.3 起桌面版不再铺 resources/runtime/cli，机器上可能一个都没有 →
+  // 这时必须明确报 missing 并给 hint，而不是返回一个能起但必失败的命令。
+  if (d.missing) {
+    assert.equal(d.command, undefined)
+    assert.ok(d.hint && d.hint.length > 0, 'missing 时一定要给下一步')
+    return
+  }
   assert.equal(typeof d.command, 'string')
   if (d.source === 'host-app') {
     assert.equal(d.shell, false)
     assert.ok(d.args.includes('--expose-internals'))
   } else {
     // 走到 PATH 兜底时必须标 riskyShell，交给 spawnDuty 拦
-    assert.ok(d.missing || d.riskyShell || d.shell === false)
+    assert.ok(d.riskyShell || d.shell === false)
   }
 })
 

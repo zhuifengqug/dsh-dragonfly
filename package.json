@@ -52,14 +52,13 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.9.0"
   },
   "scripts": {
     "test": "node --test tests/core/*.test.mjs tests/host/*.test.mjs tests/client/*.test.mjs tests/dy/*.test.mjs tests/mcp/*.test.mjs",
     "check:syntax": "node --check index.js && node --check client.js && node --check lib/paths.mjs && node --check lib/state.mjs && node --check lib/seen.mjs && node --check lib/report.mjs && node --check lib/clock.mjs && node --check lib/config.mjs && node --check lib/charter.mjs && node --check lib/hostdeps.mjs && node --check lib/mcp.mjs && node --check lib/duty.mjs && node --check lib/service.mjs && node --check lib/models.mjs && node --check lib/login.mjs && node --check lib/verify.mjs && node --check lib/diagnose.mjs && node --check lib/migrate.mjs && node --check lib/covers.mjs && node --check lib/workspace-link.mjs && node --check lib/duty-session.mjs && node --check lib/uvfetch.mjs && node --check lib/dy-host.mjs && node --check dy/core.mjs && node --check dy/tools.mjs && node --check dy/browser-host.mjs && node --check dy/mcp-bridge.mjs"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.1.0",
     "@deepseek-ai/dsh-commands": "^0.2.2-rc.1",
     "@deepseek-ai/dsh-tools": "^0.2.2-rc.1"
   },
@@ -96,6 +95,7 @@
     "playwright-core": "^1.56.0"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
     "@deepseek-ai/dsh-tools": "^0.2.2-rc.1",
     "@deepseek-ai/schemastery": "^3.19.0"
   }
