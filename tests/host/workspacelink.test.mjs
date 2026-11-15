@@ -183,6 +183,70 @@ test('attachToWorkspace：domain 被关掉时重取注册表再挂一次', async
 })
 
 
+test('attachToWorkspace：当前正在用的那条不挂（挂了下一轮就接管不了自己）', async () => {
+  // 真机事故：挂进工作区后桌面进程一直攥着会话的写句柄（内核信号量，只在进程退出时释放），
+  // 下一轮 `--session-id` 接管被 `SessionAlreadyOwnedError` 拒 → 每轮另起一条，
+  // 用户看到的就是「对话从来不复用」。
+  let calls = 0
+  const ws = { sessionIds: [], record: { title: '蜻蛉值班' }, attachSession: async () => { calls += 1 } }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  const lines = []
+  const log = (l) => lines.push(l)
+
+  // 正在用的那条：直接返回 live，一次 attach 都不发
+  assert.deepEqual(
+    await attachToWorkspace(ctx, 'D:\\x', 'session-live', log, { skip: ['session-live'] }),
+    { ok: true, reason: 'live' },
+  )
+  assert.equal(calls, 0, '正在用的那条不该被挂进去')
+  // 同一句解释只留一行，别每拍刷一遍
+  await attachToWorkspace(ctx, 'D:\\x', 'session-live', log, { skip: ['session-live'] })
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /正在用，先不挂进工作区/)
+
+  // 别的会话照旧挂（skip 只挡那一条）
+  assert.equal((await attachToWorkspace(ctx, 'D:\\x', 'session-other', log, { skip: ['session-live'] })).ok, true)
+  assert.equal(calls, 1)
+})
+
+test('reconcileWorkspace：正在用的那条不进待补名单，已经挂上的要摘出来', async () => {
+  const calls = []
+  const ws = {
+    // 上一版留下的现状：正在用的那条已经被挂进工作区了
+    sessionIds: ['session-live', 'session-old'],
+    record: { title: '蜻蛉值班' },
+    attachSession: async (id) => { calls.push(['attach', id]) },
+    detachSession: async (id) => { calls.push(['detach', id]) },
+  }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  const lines = []
+  const r = await reconcileWorkspace(
+    ctx, 'D:\\x',
+    ['session-live', 'session-history'],
+    (l) => lines.push(l),
+    { skip: ['session-live'] },
+  )
+  // 只补历史那条；正在用的那条从记账里摘掉（挂着它下一轮就接管不了自己）；
+  // session-old 已经不在磁盘上了，同样摘掉
+  assert.deepEqual(r, { ok: true, attached: 1, detached: 2, held: 1 })
+  assert.deepEqual(calls, [['attach', 'session-history'], ['detach', 'session-live'], ['detach', 'session-old']])
+  assert.match(lines.join('\n'), /摘掉正在用的 1/)
+})
+
+test('reconcileWorkspace：正在用的那条本来就没挂时，一个写都不发', async () => {
+  let writes = 0
+  const ws = {
+    sessionIds: [],
+    record: { title: '蜻蛉值班' },
+    attachSession: async () => { writes += 1 },
+    detachSession: async () => { writes += 1 },
+  }
+  const ctx = { get: () => ({ resolveByPath: async () => ws }) }
+  const r = await reconcileWorkspace(ctx, 'D:\\x', ['session-live'], () => {}, { skip: ['session-live'] })
+  assert.deepEqual(r, { ok: true, attached: 0, detached: 0 })
+  assert.equal(writes, 0)
+})
+
 test('sessionDir：把 cwd 编码成那一层目录名', () => {
   assert.equal(
     sessionDir('D:\\DSHData\\home\\sessions', 'D:\\dsh-workspaces\\蜻蛉值班'),
