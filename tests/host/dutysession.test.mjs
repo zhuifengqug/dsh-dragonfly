@@ -16,8 +16,8 @@ import { test } from 'node:test'
 import { zstdCompressSync } from 'node:zlib'
 
 import {
-  CONTEXT_LIMIT_TOKENS, SESSION_MAX_DAYS, dutySessionFileExists, loadDutySession, pickDutySession,
-  saveDutySession, sessionContextTokens,
+  CONTEXT_LIMIT_TOKENS, SESSION_MAX_DAYS, dutySessionFileExists, isSessionTrouble, loadDutySession,
+  pickDutySession, saveDutySession, sessionContextTokens,
 } from '../../lib/duty-session.mjs'
 import { projectKey } from '../../lib/workspace-link.mjs'
 import { layoutOf } from '../../lib/paths.mjs'
@@ -209,4 +209,18 @@ test('dutySessionFileExists 只认非空文件', () => {
     assert.equal(dutySessionFileExists(f.sessions, CWD, 'session-demo'), false)
     assert.equal(dutySessionFileExists('', CWD, 'session-demo'), false)
   } finally { f.cleanup() }
+})
+
+// ── 「这一轮失败是不是会话本身的问题」 ───────────────────────────────────────
+// 只有会话本身接不上才该丢掉旧会话另起一条。上游 503 / 超时这种跟会话无关的失败
+// 必须保住原来那条 —— 不然一次抖动就把会话链断掉，下一轮又从零开始，
+// 用户看到的就是「对话从来不复用」。
+test('只有会话本身接不上才算 trouble：上游 503 不算', () => {
+  assert.equal(isSessionTrouble('dsh: session "abc" is already owned by an active write handle'), 'owned')
+  assert.equal(isSessionTrouble('dsh: session "x" not found'), 'missing')
+  assert.equal(isSessionTrouble('dsh: 会话不存在'), 'missing')
+  assert.equal(isSessionTrouble('workspace cwd mismatch'), 'cwd')
+  assert.equal(isSessionTrouble('SERVER: 503: {"type":"upstream_unavailable","request_id":"2026"}'), '')
+  assert.equal(isSessionTrouble(''), '')
+  assert.equal(isSessionTrouble(undefined), '')
 })

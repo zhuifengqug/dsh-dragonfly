@@ -432,3 +432,35 @@ test('自动轮：失败不封窗，同一窗口最多试 2 次', async () => {
     await rm(home, { recursive: true, force: true })
   }
 })
+
+test('另一个窗口拿着锁时，这一拍不白吃额度（windowTries 退回去）', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dragonfly-lockbusy-'))
+  const realDshHome = process.env.DSH_HOME
+  process.env.DSH_HOME = join(home, 'dsh')
+  try {
+    const ctx = makeCtx(home)
+    const bjHour = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours()
+    const nowSlot = `${String(bjHour).padStart(2, '0')}:00`
+    const service = createDragonflyService(ctx, {
+      pluginDir: process.cwd(),
+      config: { ...DEFAULTS, peakValley: false, runTimes: [nowSlot], sources: { bili: true, douyin: false, aihot: false } },
+      log: () => {},
+    })
+    const layout = layoutOf(service.status().home)
+    // 假装另一个窗口正拿着锁：新鲜的锁 + 活着的 pid（同 pid 也算「别人」，
+    // 因为新的锁是 wx 原子创建 + token 认人）
+    await mkdir(join(home, 'dragonfly'), { recursive: true })
+    await writeFile(layout.lock, JSON.stringify({ pid: process.pid, token: 'other-window', ts: Date.now(), who: 'auto' }))
+
+    service.tick()
+    await sleep(1200)
+
+    const daily = loadDaily(layout, dayKey()).daily
+    assert.deepEqual(Object.keys(daily.windowTries || {}), [], '没真跑起来就不该留下尝试次数')
+    assert.deepEqual(daily.windowsDone || [], [], '拿不到锁更不该封窗')
+  } finally {
+    if (realDshHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = realDshHome
+    await rm(home, { recursive: true, force: true })
+  }
+})
